@@ -79,8 +79,22 @@ internal fun emitLLVM(context: Context) {
             moduleDFG = ModuleDFGBuilder(context, irModule).build()
         }
 
+        val lifetimes = mutableMapOf<IrElement, Lifetime>()
+        val codegenVisitor = CodeGeneratorVisitor(context, lifetimes)
         phaser.phase(KonanPhase.SERIALIZE_DFG) {
             DFGSerializer.serialize(context, moduleDFG!!)
+            val privateFunctions = moduleDFG!!.symbolTable.functionMap
+                    .asSequence()
+                    .filter { it.key is FunctionDescriptor }
+                    .filter { it.value.let { it is DataFlowIR.FunctionSymbol.Declared && it.symbolTableIndex >= 0 } }
+                    .sortedBy { (it.value as DataFlowIR.FunctionSymbol.Declared).symbolTableIndex }
+                    .map { it.key as FunctionDescriptor }
+                    .toList()
+
+            codegenVisitor.codegen.staticData.placeGlobalConstArray("private_functions_${irModule.descriptor.name}", int8TypePtr,
+                    privateFunctions.map { constPointer(codegenVisitor.codegen.functionLlvmValue(it)).bitcast(int8TypePtr) },
+                    isExported = true
+            )
         }
 
         @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
@@ -89,8 +103,12 @@ internal fun emitLLVM(context: Context) {
             externalModulesDFG = DFGSerializer.deserialize(context, moduleDFG!!.symbolTable.privateTypeIndex, moduleDFG!!.symbolTable.privateFunIndex)
         }
 
-        val lifetimes = mutableMapOf<IrElement, Lifetime>()
-        val codegenVisitor = CodeGeneratorVisitor(context, lifetimes)
+        var devirtualizationAnalysisResult: Map<IrCall, Devirtualization.DevirtualizedCallSite>? = null
+        phaser.phase(KonanPhase.DEVIRTUALIZATION) {
+            devirtualizationAnalysisResult = Devirtualization.analyze(irModule, context, moduleDFG!!, externalModulesDFG!!)
+            Devirtualization.devirtualize(irModule, context, devirtualizationAnalysisResult!!)
+        }
+
         phaser.phase(KonanPhase.ESCAPE_ANALYSIS) {
             val callGraph = CallGraphBuilder(context, moduleDFG!!, externalModulesDFG!!).build()
             EscapeAnalysis.computeLifetimes(moduleDFG!!, externalModulesDFG!!, callGraph, lifetimes)
@@ -1906,12 +1924,35 @@ internal class CodeGeneratorVisitor(val context: Context, val lifetimes: Map<IrE
             return evaluateIntrinsicCall(callee, argsWithContinuationIfNeeded)
         }
 
+        if (callee is IrPrivateFunctionCall)
+            return evaluatePrivateFunctionCall(callee, argsWithContinuationIfNeeded, resultLifetime)
+
         when (descriptor) {
             is IrBuiltinOperatorDescriptorBase -> return evaluateOperatorCall      (callee, argsWithContinuationIfNeeded)
             is ConstructorDescriptor           -> return evaluateConstructorCall   (callee, argsWithContinuationIfNeeded)
             else                               -> return evaluateSimpleFunctionCall(
                     descriptor, argsWithContinuationIfNeeded, resultLifetime, callee.superQualifier)
         }
+    }
+
+    //-------------------------------------------------------------------------//
+
+    private fun evaluatePrivateFunctionCall(callee: IrPrivateFunctionCall, args: List<LLVMValueRef>,
+                                            resultLifetime: Lifetime): LLVMValueRef {
+        val functionsListName = "private_functions_${callee.moduleDescriptor.name.asString()}"
+        val functionsList    =
+                if (callee.moduleDescriptor == context.irModule!!.descriptor)
+                    LLVMGetNamedGlobal(context.llvmModule, functionsListName)
+                else
+                    codegen.importGlobal(functionsListName, LLVMArrayType(int8TypePtr, callee.totalFunctions)!!, callee.moduleDescriptor.llvmSymbolOrigin)
+        val functionIndex    = LLVMConstInt(LLVMInt32Type(), callee.functionIndex.toLong(), 1)!!
+        val functionPlacePtr = LLVMBuildGEP(functionGenerationContext.builder, functionsList, cValuesOf(kImmZero, functionIndex), 2, "")!!
+        //val functionPlacePtr = functionGenerationContext.gep(functionsList, functionIndex, "")
+        val functionPtr      = functionGenerationContext.load(functionPlacePtr)
+
+        val functionPtrType  = pointerType(codegen.getLlvmFunctionType(callee.descriptor))   // Construct type of the method to be invoked
+        val function         = functionGenerationContext.bitcast(functionPtrType, functionPtr)           // Cast method address to the type
+        return call(callee.descriptor, function, args, resultLifetime)
     }
 
     //-------------------------------------------------------------------------//
