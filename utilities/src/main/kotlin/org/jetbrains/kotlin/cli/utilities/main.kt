@@ -99,7 +99,8 @@ fun invokeCinterop(args: Array<String>) {
         "-nativelibrary", File(nativesDir, "$cstubsName.bc").path,
         "-o", outputFileName,
         "-target", target,
-        "-manifest", manifest.path
+        "-manifest", manifest.path,
+        "--disable", "devirtualization"
     ) + cinteropArgsToCompiler + libraries.flatMap { listOf("-library", it) } + repos.flatMap { listOf("-repo", it) } +
             (if (noDefaultLibs) arrayOf(NODEFAULTLIBS) else emptyArray()) +
             (if (purgeUserLibs) arrayOf(PURGE_USER_LIBS) else emptyArray())
