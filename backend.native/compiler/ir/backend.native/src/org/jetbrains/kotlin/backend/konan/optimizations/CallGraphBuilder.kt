@@ -58,6 +58,153 @@ internal class CallGraph(val directEdges: Map<DataFlowIR.FunctionSymbol, CallGra
 
 }
 
+//internal interface DFGSymbolsResolver {
+//    fun resolve(type: DataFlowIR.Type): DataFlowIR.Type.Declared
+//    fun resolve(functionSymbol: DataFlowIR.FunctionSymbol): DataFlowIR.FunctionSymbol
+//}
+//
+//internal class TypeHierarchy(private val resolver: DFGSymbolsResolver, types: List<DataFlowIR.Type.Declared>) {
+//    private val typesSubTypes = mutableMapOf<DataFlowIR.Type.Declared, MutableList<DataFlowIR.Type.Declared>>()
+//
+//    init {
+//        val visited = mutableSetOf<DataFlowIR.Type.Declared>()
+//
+//        fun processType(type: DataFlowIR.Type.Declared) {
+//            if (type == DataFlowIR.Type.Virtual) return
+//            if (!visited.add(type)) return
+//            type.superTypes
+//                    .map { resolver.resolve(it) }
+//                    .forEach { superType ->
+//                        val subTypes = typesSubTypes.getOrPut(superType, { mutableListOf() })
+//                        subTypes += type
+//                        processType(superType)
+//                    }
+//        }
+//
+//        types.forEach { processType(it) }
+//    }
+//
+//    private fun findAllInheritors(type: DataFlowIR.Type.Declared, result: MutableSet<DataFlowIR.Type.Declared>) {
+//        if (!result.add(type)) return
+//        typesSubTypes[type]?.forEach { findAllInheritors(it, result) }
+//    }
+//
+//    fun inheritorsOf(type: DataFlowIR.Type.Declared): List<DataFlowIR.Type.Declared> {
+//        val result = mutableSetOf<DataFlowIR.Type.Declared>()
+//        findAllInheritors(type, result)
+//        return result.toList()
+//    }
+//}
+//
+//internal class RapidTypeAnalysis(private val functions: Map<DataFlowIR.FunctionSymbol, DataFlowIR.Function>,
+//                                 private val resolver: DFGSymbolsResolver,
+//                                 private val typeHierarchy: TypeHierarchy) {
+//    private val DEBUG = 0
+//
+//    private inline fun DEBUG_OUTPUT(severity: Int, block: () -> Unit) {
+//        if (DEBUG > severity) block()
+//    }
+//
+//    private val visited = mutableSetOf<DataFlowIR.FunctionSymbol>()
+//    private val typesVirtualCallSites = mutableMapOf<DataFlowIR.Type.Declared, MutableList<DataFlowIR.Node.VirtualCall>>()
+//    private val instantiatingClasses = mutableSetOf<DataFlowIR.Type.Declared>()
+//
+//    fun run(roots: List<DataFlowIR.FunctionSymbol>): Set<DataFlowIR.Type.Declared> {
+//        roots.forEach { dfs(it) }
+//        return instantiatingClasses
+//    }
+//
+//    private fun addInstantiatingClass(type: DataFlowIR.Type) {
+//        val resolvedType = resolver.resolve(type)
+//        if (!instantiatingClasses.add(resolvedType)) return
+//        if (DEBUG > 0)
+//            println("Adding instantiating class: $resolvedType")
+//        checkSupertypes(resolvedType, resolvedType, mutableSetOf())
+//    }
+//
+//    private fun processVirtualCall(virtualCall: DataFlowIR.Node.VirtualCall,
+//                                   receiverType: DataFlowIR.Type.Declared) {
+//        val callee = when (virtualCall) {
+//            is DataFlowIR.Node.VtableCall ->
+//                receiverType.vtable[virtualCall.calleeVtableIndex]
+//
+//            is DataFlowIR.Node.ItableCall -> {
+//                if (receiverType.itable[virtualCall.calleeHash] == null) {
+//                    println("BUGBUGBUG: $receiverType, HASH=${virtualCall.calleeHash}")
+//                    receiverType.itable.forEach { hash, impl ->
+//                        println("HASH: $hash, IMPL: $impl")
+//                    }
+//                }
+//                receiverType.itable[virtualCall.calleeHash]!!
+//            }
+//
+//            else -> error("Unreachable")
+//        }
+//        dfs(callee)
+//    }
+//
+//    private fun checkSupertypes(type: DataFlowIR.Type.Declared,
+//                                inheritor: DataFlowIR.Type.Declared,
+//                                seenTypes: MutableSet<DataFlowIR.Type.Declared>) {
+//        seenTypes += type
+//        typesVirtualCallSites[type]?.toList()?.forEach { processVirtualCall(it, inheritor) }
+//        typesVirtualCallSites[type]?.let { virtualCallSites ->
+//            var index = 0
+//            while (index < virtualCallSites.size) {
+//                processVirtualCall(virtualCallSites[index], inheritor)
+//                ++index
+//            }
+//        }
+//        type.superTypes
+//                .map { resolver.resolve(it) }
+//                .filterNot { seenTypes.contains(it) }
+//                .forEach { checkSupertypes(it, inheritor, seenTypes) }
+//    }
+//
+//    private fun dfs(symbol: DataFlowIR.FunctionSymbol) {
+//        val resolvedFunctionSymbol = resolver.resolve(symbol)
+//        if (resolvedFunctionSymbol is DataFlowIR.FunctionSymbol.External) return
+//        if (!visited.add(resolvedFunctionSymbol)) return
+//        if (DEBUG > 0)
+//            println("Visiting $resolvedFunctionSymbol")
+//        val function = functions[resolvedFunctionSymbol]!!
+//        nodeLoop@for (node in function.body.nodes) {
+//            when (node) {
+//                is DataFlowIR.Node.NewObject -> {
+//                    addInstantiatingClass(node.returnType)
+//                    dfs(node.callee)
+//                }
+//
+//                is DataFlowIR.Node.Singleton -> {
+//                    addInstantiatingClass(node.type)
+//                    node.constructor?.let { dfs(it) }
+//                }
+//
+//                is DataFlowIR.Node.Const -> addInstantiatingClass(node.type)
+//
+//                is DataFlowIR.Node.StaticCall -> dfs(node.callee)
+//
+//                is DataFlowIR.Node.VirtualCall -> {
+//                    if (node.receiverType == DataFlowIR.Type.Virtual)
+//                        continue@nodeLoop
+//                    val receiverType = resolver.resolve(node.receiverType)
+//                    typeHierarchy.inheritorsOf(receiverType)
+//                            .filter { instantiatingClasses.contains(it) }
+//                            .forEach { processVirtualCall(node, it) }
+//                    if (DEBUG > 0) {
+//                        println("Adding virtual callsite:")
+//                        println("    Receiver: $receiverType")
+//                        println("    Callee: ${node.callee}")
+//                        println("    Inheritors:")
+//                        typeHierarchy.inheritorsOf(receiverType).forEach { println("        $it") }
+//                    }
+//                    typesVirtualCallSites.getOrPut(receiverType, { mutableListOf() }).add(node)
+//                }
+//            }
+//        }
+//    }
+//}
+
 internal class CallGraphBuilder(val context: Context,
                                 val moduleDFG: ModuleDFG,
                                 val externalModulesDFG: ExternalModulesDFG) {
