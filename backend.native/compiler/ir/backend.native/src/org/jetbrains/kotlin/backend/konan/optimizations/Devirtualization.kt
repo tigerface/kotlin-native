@@ -69,7 +69,7 @@ internal object Devirtualization {
             val concreteClasses = mutableMapOf<DataFlowIR.Type.Declared, Node>()
             //val virtualClasses = mutableMapOf<DataFlowIR.Type.Declared, Node>()
             val fields = mutableMapOf<DataFlowIR.Field, Node>() // Do not distinguish receivers.
-            val virtualCallSiteReceivers = mutableMapOf<IrCall, Triple<Node, List<DevirtualizedCallee>, DataFlowIR.FunctionSymbol>>()
+            val virtualCallSiteReceivers = mutableMapOf<DataFlowIR.Node.VirtualCall, Triple<Node, List<DevirtualizedCallee>, DataFlowIR.FunctionSymbol>>()
 
             fun nextId(): Int = nodesCount++
 
@@ -405,7 +405,7 @@ internal object Devirtualization {
             }
         }
 
-        fun analyze(): Map<IrCall, DevirtualizedCallSite> {
+        fun analyze(): Map<DataFlowIR.Node.VirtualCall, DevirtualizedCallSite> {
             val functions = moduleDFG.functions + externalModulesDFG.functionDFGs
             val typeHierarchy = TypeHierarchy(symbolTable.classMap.values.filterIsInstance<DataFlowIR.Type.Declared>() +
                                               externalModulesDFG.allTypes)
@@ -539,26 +539,26 @@ internal object Devirtualization {
                     }
                 }
             }
-            val result = mutableMapOf<IrCall, Pair<DevirtualizedCallSite, DataFlowIR.FunctionSymbol>>()
+            val result = mutableMapOf<DataFlowIR.Node.VirtualCall, Pair<DevirtualizedCallSite, DataFlowIR.FunctionSymbol>>()
             val nothing = symbolTable.mapClass(context.builtIns.nothing)
             functions.values
                     .asSequence()
                     .filter { constraintGraph.functions.containsKey(it.symbol) }
                     .flatMap { it.body.nodes.asSequence() }
                     .filterIsInstance<DataFlowIR.Node.VirtualCall>()
-                    .forEach {
-                        if (nodesMap[it] == null) {
-                            println("BUGBUGBUG: $it")
+                    .forEach { virtualCall ->
+                        if (nodesMap[virtualCall] == null) {
+                            println("BUGBUGBUG: $virtualCall")
                         }
-                        assert (nodesMap[it] != null, { "Node for virtual call $it has not been built" })
-                        val callSite = it.callSite ?: return@forEach
-                        val receiver = constraintGraph.virtualCallSiteReceivers[callSite]
+                        assert (nodesMap[virtualCall] != null, { "Node for virtual call $virtualCall has not been built" })
+                        //val callSite = it.callSite ?: return@forEach
+                        val receiver = constraintGraph.virtualCallSiteReceivers[virtualCall]
                         if (receiver == null || receiver.first.types.isEmpty()
                                 || receiver.first.types.any { it == ConstraintGraph.Type.Virtual })
                             return@forEach
                         val possibleReceivers = receiver.first.types.filterNot { it.type == nothing }
                         val map = receiver.second.associateBy({ it.receiverType }, { it })
-                        result.put(callSite, DevirtualizedCallSite(possibleReceivers.map {
+                        result.put(virtualCall, DevirtualizedCallSite(possibleReceivers.map {
                             if (map[it.type] == null) {
                                 println("BUGBUGBUG: $it, ${it.type.isFinal}, ${it.type.isAbstract}")
                                 println(receiver.first)
@@ -571,7 +571,7 @@ internal object Devirtualization {
                             val callee = devirtualizedCallee.callee
                             if (callee is DataFlowIR.FunctionSymbol.Declared && callee.symbolTableIndex < 0)
                                 error("Function ${devirtualizedCallee.receiverType}.$callee cannot be called virtually," +
-                                        " but actually is at call site: ${ir2stringWhole(callSite)}")
+                                        " but actually is at call site: ${virtualCall.callSite?.let { ir2stringWhole(it) } ?: virtualCall.toString() }")
 //
 //                            println("RECEIVER: #${receiver.first.id}")
 //                            println("TYPES:")
@@ -583,11 +583,11 @@ internal object Devirtualization {
                         }) to receiver.third)
                     }
             if (DEBUG > 0) {
-                result.forEach { callSite, devirtualizedCallSite ->
+                result.forEach { virtualCall, devirtualizedCallSite ->
                     if (devirtualizedCallSite.first.possibleCallees.isNotEmpty()) {
                         println("DEVIRTUALIZED")
                         println("FUNCTION: ${devirtualizedCallSite.second}")
-                        println("CALL SITE: ${ir2stringWhole(callSite)}")
+                        println("CALL SITE: ${virtualCall.callSite?.let { ir2stringWhole(it) } ?: virtualCall.toString()}")
                         println("POSSIBLE RECEIVERS:")
                         devirtualizedCallSite.first.possibleCallees.forEach { println("    TYPE: ${it.receiverType}") }
                         devirtualizedCallSite.first.possibleCallees.forEach { println("    FUN: ${it.callee}") }
@@ -838,9 +838,7 @@ internal object Devirtualization {
                                 val devirtualizedCallees = possibleReceiverTypes.mapIndexed { index, possibleReceiverType ->
                                     DevirtualizedCallee(possibleReceiverType, callees[index])
                                 }
-                                node.callSite?.let {
-                                    constraintGraph.virtualCallSiteReceivers[it] = Triple(castedReceiver, devirtualizedCallees, function.symbol)
-                                }
+                                constraintGraph.virtualCallSiteReceivers[node] = Triple(castedReceiver, devirtualizedCallees, function.symbol)
                                 result
                             }
                         }
@@ -892,7 +890,8 @@ internal object Devirtualization {
     internal class DevirtualizedCallSite(val possibleCallees: List<DevirtualizedCallee>)
 
     internal fun analyze(irModule: IrModuleFragment, context: Context,
-                         moduleDFG: ModuleDFG, externalModulesDFG: ExternalModulesDFG) : Map<IrCall, DevirtualizedCallSite> {
+                         moduleDFG: ModuleDFG, externalModulesDFG: ExternalModulesDFG)
+            : Map<DataFlowIR.Node.VirtualCall, DevirtualizedCallSite> {
         return DevirtualizationAnalysis(context, externalModulesDFG, moduleDFG, irModule).analyze()
     }
 

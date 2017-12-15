@@ -38,7 +38,7 @@ internal class CallGraphNode(val graph: CallGraph, val symbol: DataFlowIR.Functi
         graph.reversedEdges[symbol]!!
     }
 
-    class CallSite(val call: DataFlowIR.Node.Call, val actualCallee: DataFlowIR.FunctionSymbol)
+    class CallSite(val call: DataFlowIR.Node.Call, val isVirtual: Boolean, val actualCallee: DataFlowIR.FunctionSymbol)
 
     val callSites = mutableListOf<CallSite>()
 }
@@ -207,7 +207,8 @@ internal class CallGraph(val directEdges: Map<DataFlowIR.FunctionSymbol, CallGra
 
 internal class CallGraphBuilder(val context: Context,
                                 val moduleDFG: ModuleDFG,
-                                val externalModulesDFG: ExternalModulesDFG) {
+                                val externalModulesDFG: ExternalModulesDFG,
+                                val devirtualizedCallSites: Map<DataFlowIR.Node.VirtualCall, Devirtualization.DevirtualizedCallSite>?) {
 
     private val DEBUG = 0
 
@@ -264,13 +265,24 @@ internal class CallGraphBuilder(val context: Context,
         val function = moduleDFG.functions[symbol] ?: externalModulesDFG.functionDFGs[symbol]
         val body = function!!.body
         body.nodes.filterIsInstance<DataFlowIR.Node.Call>()
-                .forEach {
-                    val callee = it.callee.resolved()
-                    callGraph.addEdge(symbol, CallGraphNode.CallSite(it, callee))
-                    if (callee is DataFlowIR.FunctionSymbol.Declared
-                            && it !is DataFlowIR.Node.VirtualCall
-                            && !directEdges.containsKey(callee))
-                        dfs(callee)
+                .forEach { call ->
+                    val devirtualizedCallSite = (call as? DataFlowIR.Node.VirtualCall)?.let { devirtualizedCallSites?.get(it) }
+                    if (devirtualizedCallSite == null) {
+                        val callee = call.callee.resolved()
+                        callGraph.addEdge(symbol, CallGraphNode.CallSite(call, call is DataFlowIR.Node.VirtualCall, callee))
+                        if (callee is DataFlowIR.FunctionSymbol.Declared
+                                && call !is DataFlowIR.Node.VirtualCall
+                                && !directEdges.containsKey(callee))
+                            dfs(callee)
+                    } else {
+                        devirtualizedCallSite.possibleCallees.forEach {
+                            val callee = it.callee.resolved()
+                            callGraph.addEdge(symbol, CallGraphNode.CallSite(call, false, callee))
+                            if (callee is DataFlowIR.FunctionSymbol.Declared
+                                    && !directEdges.containsKey(callee))
+                                dfs(callee)
+                        }
+                    }
                 }
     }
 }

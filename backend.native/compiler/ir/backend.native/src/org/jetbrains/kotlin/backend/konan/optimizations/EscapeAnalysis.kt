@@ -19,7 +19,6 @@ package org.jetbrains.kotlin.backend.konan.optimizations
 import org.jetbrains.kotlin.backend.konan.DirectedGraphCondensationBuilder
 import org.jetbrains.kotlin.backend.konan.DirectedGraphMultiNode
 import org.jetbrains.kotlin.backend.konan.llvm.Lifetime
-import org.jetbrains.kotlin.backend.konan.optimizations.*
 import org.jetbrains.kotlin.descriptors.ParameterDescriptor
 import org.jetbrains.kotlin.ir.IrElement
 
@@ -239,8 +238,12 @@ internal object EscapeAnalysis {
                 callGraph.directEdges.forEach { t, u ->
                     println("    FUN $t")
                     u.callSites.forEach {
-                        val local = callGraph.directEdges.containsKey(it.actualCallee)
-                        println("        CALLS ${if (local) "LOCAL" else "EXTERNAL"} ${it.actualCallee}")
+                        val label = when {
+                            it.isVirtual -> "VIRTUAL"
+                            callGraph.directEdges.containsKey(it.actualCallee) -> "LOCAL"
+                            else -> "EXTERNAL"
+                        }
+                        println("        CALLS $label ${it.actualCallee}")
                     }
                     callGraph.reversedEdges[t]!!.forEach {
                         println("        CALLED BY $it")
@@ -334,9 +337,10 @@ internal object EscapeAnalysis {
 
             callGraph.directEdges[function]!!.callSites.forEach {
                 val callee = it.actualCallee
-                val calleeEAResult = callGraph.directEdges[callee]?.let { escapeAnalysisResults[it.symbol]!! }
+                val calleeEAResult = if (it.isVirtual) getExternalFunctionEAResult(it)
+                else callGraph.directEdges[callee]?.let { escapeAnalysisResults[it.symbol]!! }
                         ?: getExternalFunctionEAResult(it)
-                pointsToGraph.processCall(it.call, calleeEAResult)
+                pointsToGraph.processCall(it, calleeEAResult)
             }
 
             DEBUG_OUTPUT(0) {
@@ -516,25 +520,27 @@ internal object EscapeAnalysis {
                 }
             }
 
-            fun processCall(callSite: DataFlowIR.Node.Call, calleeEscapeAnalysisResult: FunctionEscapeAnalysisResult) {
+            fun processCall(callSite: CallGraphNode.CallSite, calleeEscapeAnalysisResult: FunctionEscapeAnalysisResult) {
+                val call = callSite.call
                 DEBUG_OUTPUT(0) {
                     println("Processing callSite")
-                    println(nodeToStringWhole(callSite))
+                    println(nodeToStringWhole(call))
+                    println("Actual callee: ${callSite.actualCallee}")
                     println("Callee escape analysis result:")
                     println(calleeEscapeAnalysisResult.toString())
                 }
 
-                val arguments = if (callSite is DataFlowIR.Node.NewObject) {
-                                    (0..callSite.arguments.size).map {
-                                        if (it == 0) callSite else callSite.arguments[it - 1].node
+                val arguments = if (call is DataFlowIR.Node.NewObject) {
+                                    (0..call.arguments.size).map {
+                                        if (it == 0) call else call.arguments[it - 1].node
                                     }
                                 } else {
-                                    (0..callSite.arguments.size).map {
-                                        if (it < callSite.arguments.size) callSite.arguments[it].node else callSite
+                                    (0..call.arguments.size).map {
+                                        if (it < call.arguments.size) call.arguments[it].node else call
                                     }
                                 }
 
-                for (index in 0..callSite.arguments.size) {
+                for (index in 0..call.arguments.size) {
                     val parameterEAResult = calleeEscapeAnalysisResult.parameters[index]
                     val from = arguments[index]
                     if (parameterEAResult.escapes) {

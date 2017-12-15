@@ -103,14 +103,20 @@ internal fun emitLLVM(context: Context) {
             externalModulesDFG = DFGSerializer.deserialize(context, moduleDFG!!.symbolTable.privateTypeIndex, moduleDFG!!.symbolTable.privateFunIndex)
         }
 
-        var devirtualizationAnalysisResult: Map<IrCall, Devirtualization.DevirtualizedCallSite>? = null
+        var devirtualizationAnalysisResult: Map<DataFlowIR.Node.VirtualCall, Devirtualization.DevirtualizedCallSite>? = null
         phaser.phase(KonanPhase.DEVIRTUALIZATION) {
             devirtualizationAnalysisResult = Devirtualization.analyze(irModule, context, moduleDFG!!, externalModulesDFG!!)
-            Devirtualization.devirtualize(irModule, context, devirtualizationAnalysisResult!!)
+            val zzz = mutableMapOf<IrCall, Devirtualization.DevirtualizedCallSite>()
+            devirtualizationAnalysisResult!!.forEach { t, u ->
+                t.callSite?.let {
+                    zzz.put(it, u)
+                }
+            }
+            Devirtualization.devirtualize(irModule, context, zzz)
         }
 
         phaser.phase(KonanPhase.ESCAPE_ANALYSIS) {
-            val callGraph = CallGraphBuilder(context, moduleDFG!!, externalModulesDFG!!).build()
+            val callGraph = CallGraphBuilder(context, moduleDFG!!, externalModulesDFG!!, devirtualizationAnalysisResult).build()
             EscapeAnalysis.computeLifetimes(moduleDFG!!, externalModulesDFG!!, callGraph, lifetimes)
         }
 
