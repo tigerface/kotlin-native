@@ -768,9 +768,9 @@ internal object Devirtualization {
                     constraintGraph.externalFunctions.getOrPut(resolvedCallee) {
                         val fictitiousReturnNode = ConstraintGraph.Node.Ordinary(constraintGraph.nextId(), "External$resolvedCallee")
                         val possibleReturnTypes = instantiatingClasses.filter { it.isSubtypeOf(returnType) }
-                        possibleReturnTypes.forEach {
-                            constraintGraph.concreteClasses.getOrPut(it) {
-                                ConstraintGraph.Node.Source(constraintGraph.nextId(), ConstraintGraph.Type.concrete(returnType), "Class\$$it").also {
+                        for (type in possibleReturnTypes) {
+                            constraintGraph.concreteClasses.getOrPut(type) {
+                                ConstraintGraph.Node.Source(constraintGraph.nextId(), ConstraintGraph.Type.concrete(type), "Class\$$type").also {
                                     constraintGraph.addNode(it)
                                 }
                             }.addEdge(fictitiousReturnNode)
@@ -823,7 +823,7 @@ internal object Devirtualization {
                         val returnType = node.returnType.resolved()
                         val instanceNode = constraintGraph.concreteClasses.getOrPut(returnType) {
                             val instanceType = ConstraintGraph.Type.concrete(returnType)
-                            ConstraintGraph.Node.Source(constraintGraph.nextId(), instanceType, takeName { "Class\$${node.returnType}" }).also {
+                            ConstraintGraph.Node.Source(constraintGraph.nextId(), instanceType, takeName { "Class\$$returnType" }).also {
                                 constraintGraph.addNode(it)
                             }
                         }
