@@ -155,6 +155,16 @@ internal object EscapeAnalysis {
                             }
                         }
 
+                        is DataFlowIR.Node.ArrayWrite -> {
+                            assignRole(node.array.node, Role.FIELD_WRITTEN, RoleInfoEntry(node.value.node))
+                            assignRole(node.value.node, Role.FIELD_WRITTEN, RoleInfoEntry(node.array.node))
+                        }
+
+                        is DataFlowIR.Node.ArrayRead -> {
+                            assignRole(node.array.node, Role.FIELD_WRITTEN, RoleInfoEntry(node))
+                            assignRole(node, Role.FIELD_WRITTEN, RoleInfoEntry(node.array.node))
+                        }
+
                         is DataFlowIR.Node.Variable -> {
                             for (value in node.values) {
                                 assignRole(node, Role.FIELD_WRITTEN, RoleInfoEntry(value.node))
