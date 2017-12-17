@@ -1,226 +1,226 @@
-//fun main(args : Array<String>) {
-//  for (s in args) {
-//      println(s)
-//  }
-//}
+fun main(args : Array<String>) {
+  for (s in args) {
+      println(s)
+  }
+}
 
-import kotlin.system.measureNanoTime
-
-val BENCHMARK_SIZE = 100
-
+//import kotlin.system.measureNanoTime
+//
+//val BENCHMARK_SIZE = 100
+//
+//////-----------------------------------------------------------------------------//
+////
+////class Launcher(val numWarmIterations: Int, val numMeasureIterations: Int) {
+////    val results = mutableMapOf<String, Long>()
+////
+////    fun launch(benchmark: () -> Any?, coeff: Double = 1.0): Long {                          // If benchmark runs too long - use coeff to speed it up.
+////        var i = (numWarmIterations * coeff).toInt()
+////        var j = (numMeasureIterations * coeff).toInt()
+////
+////        while (i-- > 0) benchmark()
+////        val time = measureNanoTime {
+////            while (j-- > 0) {
+////                benchmark()
+////            }
+////        }
+////
+////        return (time / numMeasureIterations / coeff).toLong()
+////    }
+////
+////    //-------------------------------------------------------------------------//
+////
+////    fun runBenchmarks() {
+////        runLoopBenchmark()
+////    }
+////
+////    //-------------------------------------------------------------------------//
+////
+////    fun runLoopBenchmark() {
+////        val benchmark = LoopBenchmark()
+////        benchmark.setup()
+////
+//////        results["Loop.arrayLoop"]            = launch(benchmark::arrayLoop)
+//////        results["Loop.arrayIndexLoop"]       = launch(benchmark::arrayIndexLoop)
+//////        results["Loop.rangeLoop"]            = launch(benchmark::rangeLoop)
+//////        results["Loop.arrayListLoop"]        = launch(benchmark::arrayListLoop)
+//////        results["Loop.arrayWhileLoop"]       = launch(benchmark::arrayWhileLoop)
+////        //results["Loop.arrayForeachLoop"]     = launch(benchmark::arrayForeachLoop)
+////        println(launch(benchmark::arrayForeachLoop))
+//////        results["Loop.arrayListForeachLoop"] = launch(benchmark::arrayListForeachLoop)
+////    }
+////
+////}
+//
 ////-----------------------------------------------------------------------------//
 //
-//class Launcher(val numWarmIterations: Int, val numMeasureIterations: Int) {
-//    val results = mutableMapOf<String, Long>()
-//
-//    fun launch(benchmark: () -> Any?, coeff: Double = 1.0): Long {                          // If benchmark runs too long - use coeff to speed it up.
-//        var i = (numWarmIterations * coeff).toInt()
-//        var j = (numMeasureIterations * coeff).toInt()
-//
-//        while (i-- > 0) benchmark()
-//        val time = measureNanoTime {
-//            while (j-- > 0) {
-//                benchmark()
-//            }
+//class Blackhole {
+//    companion object {
+//        var consumer = 0
+//        fun consume(value: Any) {
+//            consumer += value.hashCode()
 //        }
+//    }
+//}
 //
-//        return (time / numMeasureIterations / coeff).toLong()
+//fun classValues(size: Int): Iterable<Value> {
+//    return intValues(size).map { Value(it) }
+//}
+//
+//fun stringValues(size: Int): Iterable<String> {
+//    return intValues(size).map { it.toString() }
+//}
+//
+//fun intValues(size: Int): Iterable<Int> {
+//    return 1..size
+//}
+//
+//open class Value(var value: Int) {
+//    val text = value.toString().reversed()
+//}
+//
+////fun filterLoad(v: Value): Boolean {
+////    return v.value.toString() in v.text
+////}
+////
+////fun mapLoad(v: Value): String = v.text.reversed()
+////
+////fun filterLoad(v: Int): Boolean {
+////    return v.toString() in "0123456789"
+////}
+////
+////fun mapLoad(v: Int): String = v.toString()
+////
+////fun filterSome(v: Int): Boolean = v % 7 == 0 || v % 11 == 0
+////
+////fun filterPrime(v: Int): Boolean {
+////    if (v <= 1)
+////        return false
+////    if (v <= 3)
+////        return true
+////    if (v % 2 == 0)
+////        return false
+////    var i = 3
+////    while (i*i <= v) {
+////        if (v % i == 0)
+////            return false
+////        i += 2
+////    }
+////    return true
+////}
+////
+////inline fun Array<Value>.cnt(predicate: (Value) -> Boolean): Int {
+////    var count = 0
+////    for (element in this) {
+////        if (predicate(element))
+////            count++
+////    }
+////    return count
+////}
+////
+////inline fun IntArray.cnt(predicate: (Int) -> Boolean): Int {
+////    var count = 0
+////    for (element in this) {
+////        if (predicate(element))
+////            count++
+////    }
+////    return count
+////}
+////
+////inline fun Iterable<Int>.cnt(predicate: (Int) -> Boolean): Int {
+////    var count = 0
+////    for (element in this) {
+////        if (predicate(element))
+////            count++
+////    }
+////    return count
+////}
+////
+////inline fun Sequence<Int>.cnt(predicate: (Int) -> Boolean): Int {
+////    var count = 0
+////    for (element in this) {
+////        if (predicate(element))
+////            count++
+////    }
+////    return count
+////}
+//
+//open class LoopBenchmark {
+//    lateinit var arrayList: List<Value>
+//    lateinit var array: Array<Value>
+//
+//    fun setup() {
+//        val list = ArrayList<Value>(BENCHMARK_SIZE)
+//        for (n in classValues(BENCHMARK_SIZE))
+//            list.add(n)
+//        arrayList = list
+//        array = list.toTypedArray()
 //    }
 //
-//    //-------------------------------------------------------------------------//
+////    //Benchmark
+////    fun arrayLoop() {
+////        for (x in array) {
+////            Blackhole.consume(x)
+////        }
+////    }
+////
+////    //Benchmark
+////    fun arrayIndexLoop() {
+////        for (i in array.indices) {
+////            Blackhole.consume(array[i])
+////        }
+////    }
+////
+////    //Benchmark
+////    fun rangeLoop() {
+////        for (i in 0..BENCHMARK_SIZE) {
+////            Blackhole.consume(i)
+////        }
+////    }
+////
+////    //Benchmark
+////    fun arrayListLoop() {
+////        for (x in arrayList) {
+////            Blackhole.consume(x)
+////        }
+////    }
+////
+////    //Benchmark
+////    fun arrayWhileLoop() {
+////        var i = 0
+////        val s = array.size
+////        while (i < s) {
+////            Blackhole.consume(array[i])
+////            i++
+////        }
+////    }
 //
-//    fun runBenchmarks() {
-//        runLoopBenchmark()
+//    //Benchmark
+//    fun arrayForeachLoop() {
+//        array.forEach { Blackhole.consume(it) }
 //    }
 //
-//    //-------------------------------------------------------------------------//
+////    //Benchmark
+////    fun arrayListForeachLoop() {
+////        arrayList.forEach { Blackhole.consume(it) }
+////    }
+//}
 //
-//    fun runLoopBenchmark() {
+//fun main(args: Array<String>) {
 //        val benchmark = LoopBenchmark()
 //        benchmark.setup()
-//
-////        results["Loop.arrayLoop"]            = launch(benchmark::arrayLoop)
-////        results["Loop.arrayIndexLoop"]       = launch(benchmark::arrayIndexLoop)
-////        results["Loop.rangeLoop"]            = launch(benchmark::rangeLoop)
-////        results["Loop.arrayListLoop"]        = launch(benchmark::arrayListLoop)
-////        results["Loop.arrayWhileLoop"]       = launch(benchmark::arrayWhileLoop)
-//        //results["Loop.arrayForeachLoop"]     = launch(benchmark::arrayForeachLoop)
-//        println(launch(benchmark::arrayForeachLoop))
-////        results["Loop.arrayListForeachLoop"] = launch(benchmark::arrayListForeachLoop)
-//    }
-//
+//    benchmark.arrayForeachLoop()
+////    val array = Array(2) { Value(it) }
+////    array.forEach { Blackhole.consume(it) }
+////    var numWarmIterations    =  1000       // Should be 100000 for jdk based run
+////    var numMeasureIterations =  100000
+////
+////    if (args.size == 2) {
+////        numWarmIterations    = args[0].toInt()
+////        numMeasureIterations = args[1].toInt()
+////    }
+////
+////    println("Ring starting")
+////    println("  warmup  iterations count: $numWarmIterations")
+////    println("  measure iterations count: $numMeasureIterations")
+////    Launcher(numWarmIterations, numMeasureIterations).runBenchmarks()
 //}
-
-//-----------------------------------------------------------------------------//
-
-class Blackhole {
-    companion object {
-        var consumer = 0
-        fun consume(value: Any) {
-            consumer += value.hashCode()
-        }
-    }
-}
-
-fun classValues(size: Int): Iterable<Value> {
-    return intValues(size).map { Value(it) }
-}
-
-fun stringValues(size: Int): Iterable<String> {
-    return intValues(size).map { it.toString() }
-}
-
-fun intValues(size: Int): Iterable<Int> {
-    return 1..size
-}
-
-open class Value(var value: Int) {
-    val text = value.toString().reversed()
-}
-
-//fun filterLoad(v: Value): Boolean {
-//    return v.value.toString() in v.text
-//}
-//
-//fun mapLoad(v: Value): String = v.text.reversed()
-//
-//fun filterLoad(v: Int): Boolean {
-//    return v.toString() in "0123456789"
-//}
-//
-//fun mapLoad(v: Int): String = v.toString()
-//
-//fun filterSome(v: Int): Boolean = v % 7 == 0 || v % 11 == 0
-//
-//fun filterPrime(v: Int): Boolean {
-//    if (v <= 1)
-//        return false
-//    if (v <= 3)
-//        return true
-//    if (v % 2 == 0)
-//        return false
-//    var i = 3
-//    while (i*i <= v) {
-//        if (v % i == 0)
-//            return false
-//        i += 2
-//    }
-//    return true
-//}
-//
-//inline fun Array<Value>.cnt(predicate: (Value) -> Boolean): Int {
-//    var count = 0
-//    for (element in this) {
-//        if (predicate(element))
-//            count++
-//    }
-//    return count
-//}
-//
-//inline fun IntArray.cnt(predicate: (Int) -> Boolean): Int {
-//    var count = 0
-//    for (element in this) {
-//        if (predicate(element))
-//            count++
-//    }
-//    return count
-//}
-//
-//inline fun Iterable<Int>.cnt(predicate: (Int) -> Boolean): Int {
-//    var count = 0
-//    for (element in this) {
-//        if (predicate(element))
-//            count++
-//    }
-//    return count
-//}
-//
-//inline fun Sequence<Int>.cnt(predicate: (Int) -> Boolean): Int {
-//    var count = 0
-//    for (element in this) {
-//        if (predicate(element))
-//            count++
-//    }
-//    return count
-//}
-
-open class LoopBenchmark {
-    lateinit var arrayList: List<Value>
-    lateinit var array: Array<Value>
-
-    fun setup() {
-        val list = ArrayList<Value>(BENCHMARK_SIZE)
-        for (n in classValues(BENCHMARK_SIZE))
-            list.add(n)
-        arrayList = list
-        array = list.toTypedArray()
-    }
-
-//    //Benchmark
-//    fun arrayLoop() {
-//        for (x in array) {
-//            Blackhole.consume(x)
-//        }
-//    }
-//
-//    //Benchmark
-//    fun arrayIndexLoop() {
-//        for (i in array.indices) {
-//            Blackhole.consume(array[i])
-//        }
-//    }
-//
-//    //Benchmark
-//    fun rangeLoop() {
-//        for (i in 0..BENCHMARK_SIZE) {
-//            Blackhole.consume(i)
-//        }
-//    }
-//
-//    //Benchmark
-//    fun arrayListLoop() {
-//        for (x in arrayList) {
-//            Blackhole.consume(x)
-//        }
-//    }
-//
-//    //Benchmark
-//    fun arrayWhileLoop() {
-//        var i = 0
-//        val s = array.size
-//        while (i < s) {
-//            Blackhole.consume(array[i])
-//            i++
-//        }
-//    }
-
-    //Benchmark
-    fun arrayForeachLoop() {
-        array.forEach { Blackhole.consume(it) }
-    }
-
-//    //Benchmark
-//    fun arrayListForeachLoop() {
-//        arrayList.forEach { Blackhole.consume(it) }
-//    }
-}
-
-fun main(args: Array<String>) {
-        val benchmark = LoopBenchmark()
-        benchmark.setup()
-    benchmark.arrayForeachLoop()
-//    val array = Array(2) { Value(it) }
-//    array.forEach { Blackhole.consume(it) }
-//    var numWarmIterations    =  1000       // Should be 100000 for jdk based run
-//    var numMeasureIterations =  100000
-//
-//    if (args.size == 2) {
-//        numWarmIterations    = args[0].toInt()
-//        numMeasureIterations = args[1].toInt()
-//    }
-//
-//    println("Ring starting")
-//    println("  warmup  iterations count: $numWarmIterations")
-//    println("  measure iterations count: $numMeasureIterations")
-//    Launcher(numWarmIterations, numMeasureIterations).runBenchmarks()
-}
