@@ -1,13 +1,13 @@
-fun main(args : Array<String>) {
-  for (s in args) {
-      println(s)
-  }
-}
+//fun main(args : Array<String>) {
+//  for (s in args) {
+//      println(s)
+//  }
+//}
 
-//import kotlin.system.measureNanoTime
-//
-//val BENCHMARK_SIZE = 100
-//
+import kotlin.system.measureNanoTime
+
+val BENCHMARK_SIZE = 100
+
 ////-----------------------------------------------------------------------------//
 //
 //class Launcher(val numWarmIterations: Int, val numMeasureIterations: Int) {
@@ -50,34 +50,34 @@ fun main(args : Array<String>) {
 //    }
 //
 //}
-//
-////-----------------------------------------------------------------------------//
-//
-//class Blackhole {
-//    companion object {
-//        var consumer = 0
-//        fun consume(value: Any) {
-//            consumer += value.hashCode()
-//        }
-//    }
-//}
-//
-//fun classValues(size: Int): Iterable<Value> {
-//    return intValues(size).map { Value(it) }
-//}
-//
-//fun stringValues(size: Int): Iterable<String> {
-//    return intValues(size).map { it.toString() }
-//}
-//
-//fun intValues(size: Int): Iterable<Int> {
-//    return 1..size
-//}
-//
-//open class Value(var value: Int) {
-//    val text = value.toString().reversed()
-//}
-//
+
+//-----------------------------------------------------------------------------//
+
+class Blackhole {
+    companion object {
+        var consumer = 0
+        fun consume(value: Any) {
+            consumer += value.hashCode()
+        }
+    }
+}
+
+fun classValues(size: Int): Iterable<Value> {
+    return intValues(size).map { Value(it) }
+}
+
+fun stringValues(size: Int): Iterable<String> {
+    return intValues(size).map { it.toString() }
+}
+
+fun intValues(size: Int): Iterable<Int> {
+    return 1..size
+}
+
+open class Value(var value: Int) {
+    val text = value.toString().reversed()
+}
+
 //fun filterLoad(v: Value): Boolean {
 //    return v.value.toString() in v.text
 //}
@@ -143,19 +143,19 @@ fun main(args : Array<String>) {
 //    }
 //    return count
 //}
-//
-//open class LoopBenchmark {
-//    lateinit var arrayList: List<Value>
-//    lateinit var array: Array<Value>
-//
-//    fun setup() {
-//        val list = ArrayList<Value>(BENCHMARK_SIZE)
-//        for (n in classValues(BENCHMARK_SIZE))
-//            list.add(n)
-//        arrayList = list
-//        array = list.toTypedArray()
-//    }
-//
+
+open class LoopBenchmark {
+    lateinit var arrayList: List<Value>
+    lateinit var array: Array<Value>
+
+    fun setup() {
+        val list = ArrayList<Value>(BENCHMARK_SIZE)
+        for (n in classValues(BENCHMARK_SIZE))
+            list.add(n)
+        arrayList = list
+        array = list.toTypedArray()
+    }
+
 //    //Benchmark
 //    fun arrayLoop() {
 //        for (x in array) {
@@ -193,24 +193,24 @@ fun main(args : Array<String>) {
 //            i++
 //        }
 //    }
-//
-//    //Benchmark
-//    fun arrayForeachLoop() {
-//        array.forEach { Blackhole.consume(it) }
-//    }
-//
+
+    //Benchmark
+    fun arrayForeachLoop() {
+        array.forEach { Blackhole.consume(it) }
+    }
+
 //    //Benchmark
 //    fun arrayListForeachLoop() {
 //        arrayList.forEach { Blackhole.consume(it) }
 //    }
-//}
-//
-//fun main(args: Array<String>) {
-////        val benchmark = LoopBenchmark()
-////        benchmark.setup()
-////    benchmark.arrayForeachLoop()
-////    val array = Array(2) { Value(it) }
-////    array.forEach { Blackhole.consume(it) }
+}
+
+fun main(args: Array<String>) {
+        val benchmark = LoopBenchmark()
+        benchmark.setup()
+    benchmark.arrayForeachLoop()
+//    val array = Array(2) { Value(it) }
+//    array.forEach { Blackhole.consume(it) }
 //    var numWarmIterations    =  1000       // Should be 100000 for jdk based run
 //    var numMeasureIterations =  100000
 //
@@ -223,4 +223,4 @@ fun main(args : Array<String>) {
 //    println("  warmup  iterations count: $numWarmIterations")
 //    println("  measure iterations count: $numMeasureIterations")
 //    Launcher(numWarmIterations, numMeasureIterations).runBenchmarks()
-//}
+}

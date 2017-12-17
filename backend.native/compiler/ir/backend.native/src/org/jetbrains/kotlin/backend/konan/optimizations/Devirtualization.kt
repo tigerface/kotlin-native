@@ -68,6 +68,7 @@ internal object Devirtualization {
             val arrayItemField = DataFlowIR.Field(null, 1, "Array\$Item")
             val functions = mutableMapOf<DataFlowIR.FunctionSymbol, Function>()
             val concreteClasses = mutableMapOf<DataFlowIR.Type.Declared, Node>()
+            val externalFunctions = mutableMapOf<DataFlowIR.FunctionSymbol, Node>()
             //val virtualClasses = mutableMapOf<DataFlowIR.Type.Declared, Node>()
             val fields = mutableMapOf<DataFlowIR.Field, Node>() // Do not distinguish receivers.
             val virtualCallSiteReceivers = mutableMapOf<DataFlowIR.Node.VirtualCall, Triple<Node, List<DevirtualizedCallee>, DataFlowIR.FunctionSymbol>>()
@@ -279,7 +280,8 @@ internal object Devirtualization {
             }
         }
 
-        private inner class InstantiationsSearcher(val functions: Map<DataFlowIR.FunctionSymbol, DataFlowIR.Function>,
+        private inner class InstantiationsSearcher(val moduleDFG: ModuleDFG,
+                                                   val externalModulesDFG: ExternalModulesDFG,
                                                    val typeHierarchy: TypeHierarchy) {
             private val visited = mutableSetOf<DataFlowIR.FunctionSymbol>()
             private val typesVirtualCallSites = mutableMapOf<DataFlowIR.Type.Declared, MutableList<DataFlowIR.Node.VirtualCall>>()
@@ -296,12 +298,20 @@ internal object Devirtualization {
 
                     dfs(symbolTable.mapFunction(findMainEntryPoint(context)!!))
 
-                    functions.values
+                    (moduleDFG.functions.values + externalModulesDFG.functionDFGs.values)
                             .filter { it.isGlobalInitializer }
                             .forEach { dfs(it.symbol) }
                 } else {
+                    moduleDFG.functions.values
+                            .filter { it.symbol is DataFlowIR.FunctionSymbol.Public }
+                            .forEach {
+                                it.parameterTypes
+                                        .map { it.resolved() }
+                                        .filter { it.isFinal }
+                                        .forEach { instantiatingClasses += it }
+                            }
                     // For a library assume the worst: find every instantiation and singleton and consider all of them possible.
-                    functions.values
+                    (moduleDFG.functions.values + externalModulesDFG.functionDFGs.values)
                             .asSequence()
                             .flatMap { it.body.nodes.asSequence() }
                             .forEach {
@@ -368,7 +378,7 @@ internal object Devirtualization {
                 if (!visited.add(resolvedFunctionSymbol)) return
                 if (DEBUG > 0)
                     println("Visiting $resolvedFunctionSymbol")
-                val function = functions[resolvedFunctionSymbol]!!
+                val function = (moduleDFG.functions[resolvedFunctionSymbol] ?: externalModulesDFG.functionDFGs[resolvedFunctionSymbol])!!
                 nodeLoop@for (node in function.body.nodes) {
                     when (node) {
                         is DataFlowIR.Node.NewObject -> {
@@ -410,29 +420,30 @@ internal object Devirtualization {
             val functions = moduleDFG.functions + externalModulesDFG.functionDFGs
             val typeHierarchy = TypeHierarchy(symbolTable.classMap.values.filterIsInstance<DataFlowIR.Type.Declared>() +
                                               externalModulesDFG.allTypes)
-            val instantiatingClasses = InstantiationsSearcher(functions, typeHierarchy).search()
+            val instantiatingClasses = InstantiationsSearcher(moduleDFG, externalModulesDFG, typeHierarchy).search()
             val rootSet = getRootSet(irModule)
 
             val nodesMap = mutableMapOf<DataFlowIR.Node, ConstraintGraph.Node>()
             val variables = mutableMapOf<DataFlowIR.Node.Variable, ConstraintGraph.Node>()
+            // TODO: hokum.
             rootSet.filterIsInstance<FunctionDescriptor>()
                     .forEach {
                         val functionSymbol = symbolTable.mapFunction(it).resolved()
                         val function = buildFunctionConstraintGraph(functionSymbol, nodesMap, variables, instantiatingClasses)!!
-                        it.allParameters.forEachIndexed { index, parameter ->
-//                            parameter.type.erasure().forEach {
-//                                val parameterType = symbolTable.mapClass(it.constructor.declarationDescriptor as ClassDescriptor).resolved()
-//                                val node = constraintGraph.virtualClasses.getOrPut(parameterType) {
-//                                    ConstraintGraph.Node.Source(constraintGraph.nextId(), "Class\$$parameterType", ConstraintGraph.Type.virtual(parameterType)).also {
-//                                        constraintGraph.addNode(it)
-//                                    }
-//                                }
-//                                val node = constraintGraph.virtualNode
-//                                node.addEdge(function.parameters[index])
-//                            }
-                            val node = constraintGraph.virtualNode
-                            node.addEdge(function.parameters[index])
-                        }
+//                        it.allParameters.forEachIndexed { index, parameter ->
+////                            parameter.type.erasure().forEach {
+////                                val parameterType = symbolTable.mapClass(it.constructor.declarationDescriptor as ClassDescriptor).resolved()
+////                                val node = constraintGraph.virtualClasses.getOrPut(parameterType) {
+////                                    ConstraintGraph.Node.Source(constraintGraph.nextId(), "Class\$$parameterType", ConstraintGraph.Type.virtual(parameterType)).also {
+////                                        constraintGraph.addNode(it)
+////                                    }
+////                                }
+////                                val node = constraintGraph.virtualNode
+////                                node.addEdge(function.parameters[index])
+////                            }
+//                            val node = constraintGraph.virtualNode
+//                            node.addEdge(function.parameters[index])
+//                        }
                     }
             functions.values
                     .filter { it.isGlobalInitializer }
@@ -741,14 +752,32 @@ internal object Devirtualization {
                        arguments: List<Any>,
                        returnType: DataFlowIR.Type.Declared,
                        receiverType: DataFlowIR.Type.Declared?): ConstraintGraph.Node {
-                val calleeConstraintGraph = buildFunctionConstraintGraph(callee.resolved(), functionNodesMap, variables, instantiatingClasses)
+                val resolvedCallee = callee.resolved()
+                val calleeConstraintGraph = buildFunctionConstraintGraph(resolvedCallee, functionNodesMap, variables, instantiatingClasses)
                 return if (calleeConstraintGraph == null) {
 //                    constraintGraph.concreteClasses.getOrPut(returnType) {
-//                        ConstraintGraph.Node.Source(constraintGraph.nextId(), "Class\$$returnType", ConstraintGraph.Type.virtual(returnType)).also {
+//                        ConstraintGraph.Node.Source(constraintGraph.nextId(), ConstraintGraph.Type.concrete(returnType), "Class\$$returnType").also {
 //                            constraintGraph.addNode(it)
 //                        }
 //                    }
-                    constraintGraph.virtualNode
+//                    constraintGraph.virtualClasses.getOrPut(returnType) {
+//                        ConstraintGraph.Node.Source(constraintGraph.nextId(), ConstraintGraph.Type.virtual(returnType), "Class\$$returnType").also {
+//                            constraintGraph.addNode(it)
+//                        }
+//                    }
+                    constraintGraph.externalFunctions.getOrPut(resolvedCallee) {
+                        val fictitiousReturnNode = ConstraintGraph.Node.Ordinary(constraintGraph.nextId(), "External$resolvedCallee")
+                        val possibleReturnTypes = instantiatingClasses.filter { it.isSubtypeOf(returnType) }
+                        possibleReturnTypes.forEach {
+                            constraintGraph.concreteClasses.getOrPut(it) {
+                                ConstraintGraph.Node.Source(constraintGraph.nextId(), ConstraintGraph.Type.concrete(returnType), "Class\$$it").also {
+                                    constraintGraph.addNode(it)
+                                }
+                            }.addEdge(fictitiousReturnNode)
+                        }
+                        fictitiousReturnNode
+                    }
+                    //constraintGraph.virtualNode
                 } else {
                     if (receiverType == null)
                         doCall(calleeConstraintGraph, arguments)
