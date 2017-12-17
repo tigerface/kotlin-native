@@ -214,7 +214,7 @@ internal class ModuleDFGBuilder(val context: Context, val irModule: IrModuleFrag
         if (DEBUG > severity) block()
     }
 
-    private val TAKE_NAMES = false // Take fqNames for all functions and types (for debug purposes).
+    private val TAKE_NAMES = true // Take fqNames for all functions and types (for debug purposes).
 
     private inline fun takeName(block: () -> String) = if (TAKE_NAMES) block() else null
 
@@ -239,7 +239,7 @@ internal class ModuleDFGBuilder(val context: Context, val irModule: IrModuleFrag
 
             override fun visitFunction(declaration: IrFunction) {
                 declaration.body?.let {
-                    DEBUG_OUTPUT(1) {
+                    DEBUG_OUTPUT(0) {
                         println("Analysing function ${declaration.descriptor}")
                         println("IR: ${ir2stringWhole(declaration)}")
                     }
@@ -249,7 +249,7 @@ internal class ModuleDFGBuilder(val context: Context, val irModule: IrModuleFrag
 
             override fun visitField(declaration: IrField) {
                 declaration.initializer?.let {
-                    DEBUG_OUTPUT(1) {
+                    DEBUG_OUTPUT(0) {
                         println("Analysing global field ${declaration.descriptor}")
                         println("IR: ${ir2stringWhole(declaration)}")
                     }
@@ -262,7 +262,7 @@ internal class ModuleDFGBuilder(val context: Context, val irModule: IrModuleFrag
                 val visitor = ElementFinderVisitor()
                 body.acceptVoid(visitor)
 
-                DEBUG_OUTPUT(1) {
+                DEBUG_OUTPUT(0) {
                     println("FIRST PHASE")
                     visitor.variableValues.elementData.forEach { t, u ->
                         println("VAR $t:")
@@ -278,7 +278,7 @@ internal class ModuleDFGBuilder(val context: Context, val irModule: IrModuleFrag
                 // Compute transitive closure of possible values for variables.
                 visitor.variableValues.computeClosure()
 
-                DEBUG_OUTPUT(1) {
+                DEBUG_OUTPUT(0) {
                     println("SECOND PHASE")
                     visitor.variableValues.elementData.forEach { t, u ->
                         println("VAR $t:")
@@ -291,7 +291,7 @@ internal class ModuleDFGBuilder(val context: Context, val irModule: IrModuleFrag
                 val function = FunctionDFGBuilder(expressionValuesExtractor, visitor.variableValues,
                         descriptor, visitor.expressions, visitor.returnValues, visitor.thrownValues).build()
 
-                DEBUG_OUTPUT(1) {
+                DEBUG_OUTPUT(0) {
                     function.debugOutput()
                 }
 
@@ -299,7 +299,7 @@ internal class ModuleDFGBuilder(val context: Context, val irModule: IrModuleFrag
             }
         }, data = null)
 
-        DEBUG_OUTPUT(2) {
+        DEBUG_OUTPUT(1) {
             println("SYMBOL TABLE:")
             symbolTable.classMap.forEach { descriptor, type ->
                 println("    DESCRIPTOR: $descriptor")
@@ -407,6 +407,10 @@ internal class ModuleDFGBuilder(val context: Context, val irModule: IrModuleFrag
     private val doResumeFunctionDescriptor = context.getInternalClass("CoroutineImpl").unsubstitutedMemberScope
             .getContributedFunctions(Name.identifier("doResume"), NoLookupLocation.FROM_BACKEND).single()
     private val getContinuationSymbol = context.ir.symbols.getContinuation
+    private val continuationType = getContinuationSymbol.descriptor.returnType!!
+
+    private val arrayGetSymbol = context.ir.symbols.arrayGet
+    private val arraySetSymbol = context.ir.symbols.arraySet
 
     private inner class FunctionDFGBuilder(val expressionValuesExtractor: ExpressionValuesExtractor,
                                            val variableValues: VariableValues,
@@ -447,10 +451,13 @@ internal class ModuleDFGBuilder(val context: Context, val irModule: IrModuleFrag
             val allNodes = nodes.values + variables.values + templateParameters.values + returnsNode + throwsNode +
                     (if (descriptor.isSuspend) listOf(continuationParameter!!) else emptyList())
 
+            val parameterTypes = (allParameters.map { it.type } + (if (descriptor.isSuspend) listOf(continuationType) else emptyList()))
+                    .map { symbolTable.mapClass(it.erasure().single().constructor.declarationDescriptor as ClassDescriptor) }
+                    .toTypedArray()
             return DataFlowIR.Function(
                     symbol              = symbolTable.mapFunction(descriptor),
                     isGlobalInitializer = descriptor is PropertyDescriptor,
-                    numberOfParameters  = templateParameters.size + if (descriptor.isSuspend) 1 else 0,
+                    parameterTypes      = parameterTypes,
                     body                = DataFlowIR.FunctionBody(allNodes.distinct().toList(), returnsNode, throwsNode)
             )
         }
@@ -468,7 +475,7 @@ internal class ModuleDFGBuilder(val context: Context, val irModule: IrModuleFrag
                 return variables[descriptor as VariableDescriptor]!!
             }
             return nodes.getOrPut(expression) {
-                DEBUG_OUTPUT(1) {
+                DEBUG_OUTPUT(0) {
                     println("Converting expression")
                     println(ir2stringWhole(expression))
                 }
@@ -502,6 +509,11 @@ internal class ModuleDFGBuilder(val context: Context, val irModule: IrModuleFrag
                             is IrCall -> {
                                 if (value.symbol == getContinuationSymbol) {
                                     getContinuation()
+                                } else if (value.symbol == arrayGetSymbol) {
+                                    DataFlowIR.Node.ArrayRead(expressionToEdge(value.dispatchReceiver!!), expressionToEdge(value.getValueArgument(0)!!))
+                                } else if (value.symbol == arraySetSymbol) {
+                                    DataFlowIR.Node.ArrayWrite(expressionToEdge(value.dispatchReceiver!!),
+                                            expressionToEdge(value.getValueArgument(0)!!), expressionToEdge(value.getValueArgument(1)!!))
                                 } else {
                                     val callee = value.descriptor
                                     val arguments = value.getArguments()

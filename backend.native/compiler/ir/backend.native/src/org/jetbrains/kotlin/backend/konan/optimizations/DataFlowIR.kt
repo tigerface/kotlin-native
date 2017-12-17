@@ -217,6 +217,10 @@ internal object DataFlowIR {
 
         class FieldWrite(val receiver: Edge?, val field: Field, val value: Edge) : Node()
 
+        class ArrayRead(val array: Edge, val index: Edge) : Node()
+
+        class ArrayWrite(val array: Edge, val index: Edge, val value: Edge) : Node()
+
         class Variable(values: List<Edge>, val temp: Boolean) : Node() {
             val values = mutableListOf<Edge>().also { it += values }
         }
@@ -226,13 +230,12 @@ internal object DataFlowIR {
 
     class Function(val symbol: FunctionSymbol,
                    val isGlobalInitializer: Boolean,
-                   val numberOfParameters: Int,
+                   val parameterTypes: Array<Type>,
                    val body: FunctionBody) {
-
 
         fun debugOutput() {
             println("FUNCTION $symbol")
-            println("Params: $numberOfParameters")
+            println("Params: ${parameterTypes.contentToString()}")
             val ids = body.nodes.withIndex().associateBy({ it.value }, { it.index })
             body.nodes.forEach {
                 println("    NODE #${ids[it]!!}")
@@ -361,7 +364,7 @@ internal object DataFlowIR {
 
     class SymbolTable(val context: Context, val irModule: IrModuleFragment, val module: Module) {
 
-        private val TAKE_NAMES = false // Take fqNames for all functions and types (for debug purposes).
+        private val TAKE_NAMES = true // Take fqNames for all functions and types (for debug purposes).
 
         private inline fun takeName(block: () -> String) = if (TAKE_NAMES) block() else null
 

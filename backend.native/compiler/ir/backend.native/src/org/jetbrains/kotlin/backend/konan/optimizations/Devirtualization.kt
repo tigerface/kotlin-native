@@ -65,6 +65,7 @@ internal object Devirtualization {
             val nodes = mutableListOf<Node>()
             val voidNode = Node.Ordinary(nextId(), takeName { "Void" }).also { nodes.add(it) }
             val virtualNode = Node.Source(nextId(), Type.Virtual, takeName { "Virtual" }).also { nodes.add(it) }
+            val arrayItemField = DataFlowIR.Field(null, 1, "Array\$Item")
             val functions = mutableMapOf<DataFlowIR.FunctionSymbol, Function>()
             val concreteClasses = mutableMapOf<DataFlowIR.Type.Declared, Node>()
             //val virtualClasses = mutableMapOf<DataFlowIR.Type.Declared, Node>()
@@ -553,9 +554,23 @@ internal object Devirtualization {
                         assert (nodesMap[virtualCall] != null, { "Node for virtual call $virtualCall has not been built" })
                         //val callSite = it.callSite ?: return@forEach
                         val receiver = constraintGraph.virtualCallSiteReceivers[virtualCall]
-                        if (receiver == null || receiver.first.types.isEmpty()
-                                || receiver.first.types.any { it == ConstraintGraph.Type.Virtual })
+                        if (receiver == null) {
+                            result.put(virtualCall, DevirtualizedCallSite(emptyList()) to virtualCall.callee)
                             return@forEach
+                        }
+                        if (//receiver == null// || receiver.first.types.isEmpty()
+                                /*|| */receiver.first.types.any { it == ConstraintGraph.Type.Virtual }) {
+                            if (DEBUG > 0) {
+                                println("Unable to devirtualize callsite ${virtualCall.callSite?.let { ir2stringWhole(it) } ?: virtualCall.toString() }")
+                                //if (receiver == null)
+                                  //  println("    receiver = null")
+                                //else if (receiver.first.types.isEmpty())
+                                  //  println("    no single possible receiver type")
+                                //else
+                                println("    receiver is Virtual")
+                            }
+                            return@forEach
+                        }
                         val possibleReceivers = receiver.first.types.filterNot { it.type == nothing }
                         val map = receiver.second.associateBy({ it.receiverType }, { it })
                         result.put(virtualCall, DevirtualizedCallSite(possibleReceivers.map {
@@ -638,11 +653,20 @@ internal object Devirtualization {
             val function = (moduleDFG.functions[symbol] ?: externalModulesDFG.functionDFGs[symbol])
                     ?: error("Unknown function: $symbol")
             val body = function.body
-            val parameters = Array<ConstraintGraph.Node>(function.numberOfParameters) {
+            val parameters = Array<ConstraintGraph.Node>(symbol.numberOfParameters) {
                 ConstraintGraph.Node.Ordinary(constraintGraph.nextId(), takeName { "Param#$it\$$symbol" }).also {
                     constraintGraph.addNode(it)
                 }
             }
+
+            if (!hasMain && symbol is DataFlowIR.FunctionSymbol.Public && moduleDFG.functions.containsKey(symbol)) {
+                // Exported function from the current module.
+                function.parameterTypes.forEachIndexed { index, type ->
+                    if (type.resolved().isFinal) return@forEachIndexed
+                    constraintGraph.virtualNode.addEdge(parameters[index])
+                }
+            }
+
             val returnsNode = ConstraintGraph.Node.Ordinary(constraintGraph.nextId(), takeName { "Returns\$$symbol" }).also {
                 constraintGraph.addNode(it)
             }
@@ -815,9 +839,12 @@ internal object Devirtualization {
                                 callees.forEach { println("$it") }
                                 println()
                             }
-                            if (callees.isEmpty())
+                            if (callees.isEmpty()) {
+                                if (DEBUG > 0) {
+                                    println("WARNING: no possible callees for call ${node.callee}")
+                                }
                                 constraintGraph.voidNode
-                            else {
+                            } else {
                                 val returnType = node.returnType.resolved()
                                 val receiverNode = edgeToConstraintNode(node.arguments[0])
                                 val castedReceiver = ConstraintGraph.Node.Ordinary(constraintGraph.nextId(), takeName { "CastedReceiver\$${function.symbol}" })
@@ -864,6 +891,23 @@ internal object Devirtualization {
                     is DataFlowIR.Node.FieldWrite -> {
                         val fieldNode = constraintGraph.fields.getOrPut(node.field) {
                             ConstraintGraph.Node.Ordinary(constraintGraph.nextId(), takeName { "Field\$${node.field}" }).also {
+                                constraintGraph.addNode(it)
+                            }
+                        }
+                        edgeToConstraintNode(node.value).addEdge(fieldNode)
+                        constraintGraph.voidNode
+                    }
+
+                    is DataFlowIR.Node.ArrayRead ->
+                        constraintGraph.fields.getOrPut(constraintGraph.arrayItemField) {
+                            ConstraintGraph.Node.Ordinary(constraintGraph.nextId(), takeName { "Field\$${constraintGraph.arrayItemField}" }).also {
+                                constraintGraph.addNode(it)
+                            }
+                        }
+
+                    is DataFlowIR.Node.ArrayWrite -> {
+                        val fieldNode = constraintGraph.fields.getOrPut(constraintGraph.arrayItemField) {
+                            ConstraintGraph.Node.Ordinary(constraintGraph.nextId(), takeName { "Field\$${constraintGraph.arrayItemField}" }).also {
                                 constraintGraph.addNode(it)
                             }
                         }

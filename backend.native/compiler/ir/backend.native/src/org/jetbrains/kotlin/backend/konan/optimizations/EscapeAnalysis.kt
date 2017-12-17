@@ -270,7 +270,7 @@ internal object EscapeAnalysis {
             }
 
             for (functionSymbol in callGraph.directEdges.keys) {
-                val numberOfParameters = intraproceduralAnalysisResult[functionSymbol]!!.function.numberOfParameters
+                val numberOfParameters = functionSymbol.numberOfParameters
                 escapeAnalysisResults[functionSymbol] = FunctionEscapeAnalysisResult(
                         // Assume no edges at the beginning.
                         // Then iteratively add needed.
@@ -372,13 +372,12 @@ internal object EscapeAnalysis {
         private fun getExternalFunctionEAResult(callSite: CallGraphNode.CallSite): FunctionEscapeAnalysisResult {
             val callee = callSite.actualCallee
 
-            val calleeEAResult = if (callSite.call is DataFlowIR.Node.VirtualCall) {
+            val calleeEAResult = if (callSite.isVirtual) {
 
                 DEBUG_OUTPUT(0) { println("A virtual call: $callee") }
 
                 getConservativeFunctionEAResult(callee)
             } else {
-                callSite.call as DataFlowIR.Node.StaticCall
                 callee as DataFlowIR.FunctionSymbol.External
 
                 FunctionEscapeAnalysisResult.fromBits(
