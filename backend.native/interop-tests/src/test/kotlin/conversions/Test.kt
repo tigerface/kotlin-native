@@ -6,7 +6,7 @@ import org.junit.Test
 import java.nio.file.Paths
 
 class Test {
-    private val testSrcDir = Paths.get(PROJECT_DIR, "src", "test", "kotlin", "conversions")
+    private val testSrcDir = Paths.get(testHome, "test", "kotlin", "conversions")
 
     @Test
     fun convertValues() {

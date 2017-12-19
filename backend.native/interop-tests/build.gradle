@@ -30,13 +30,12 @@ dependencies {
 
 def testHome = project.file("src")
 def testOutput = project.file("test-out")
-testOutput.mkdirs()
-
 def konanHome = (project.findProperty("konan.home") ?: distDir).absolutePath
 
-task cleanup {
+task prepare {
     doLast {
         delete testOutput
+        testOutput.mkdirs()
     }
 }
 
@@ -48,5 +47,5 @@ test {
             'test.output' : testOutput,
             'test.home' : testHome
     ]
-    dependsOn('cleanup')
+    dependsOn(prepare)
 }

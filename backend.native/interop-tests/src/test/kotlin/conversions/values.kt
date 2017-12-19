@@ -102,8 +102,7 @@ interface I {
     fun iFun(): String = "I::iFun"
 }
 
-// FIXME: fails to compile to framework
-/* private */interface PI {
+private interface PI {
     fun piFun(): Any
     fun iFun(): String = "PI::iFun"
 }
@@ -131,4 +130,21 @@ open class ConstrClass(open val i: Int, val s: String, val a: Any = "AnyS") : Op
 
 class ExtConstrClass(override val i: Int) : ConstrClass(i, "String") {
     override fun iFun(): String  = "ExtConstrClass::iFun::$i-$s-$a"
+}
+
+// Enum
+enum class Enumeration(val enumValue: Int) {
+    ANSWER(42), YEAR(1984), TEMPERATURE(451)
+}
+
+fun passEnum(): Enumeration {
+    return Enumeration.ANSWER
+}
+
+fun receiveEnum(e: Int) {
+    println("ENUM got: ${get(e).enumValue}")
+}
+
+fun get(value: Int): Enumeration {
+    return Enumeration.values()[value]
 }

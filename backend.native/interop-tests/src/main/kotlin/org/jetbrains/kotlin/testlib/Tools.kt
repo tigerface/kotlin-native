@@ -21,47 +21,45 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.concurrent.TimeUnit
 
-const val PROJECT_DIR = "/Users/ppunegov/ws/kotlin-native/backend.native/interop-tests/"
+val konanHome = resolveProperty("konan.home")
+val testHome = resolveProperty("test.home")
+val testOutput = resolveProperty("test.output")
+
+fun resolveProperty(property: String): String {
+    return System.getProperty(property) ?: throw RuntimeException("konan.home is not defined")
+}
 
 object CompilerUtils {
     private fun compile(compiler: String, options: List<String>, output: Path) {
         check(Files.notExists(output))
         val executeProcess = ProcessUtils.executeProcess(compiler, *options.toTypedArray())
-        assert(executeProcess.exitCode == 0, {
-            """Compiler $compiler exited with: ${executeProcess.exitCode}
+        println("""$compiler finished with exit code: ${executeProcess.exitCode}
             |stdout: ${executeProcess.stdOut}
             |stderr: ${executeProcess.stdErr}
-            """.trimMargin()
-        })
-        check(output.toFile().exists(), { "Compiler ${compiler} hasn't produced output file: $output" })
+            """.trimMargin())
+        check(executeProcess.exitCode == 0, { "Compilation failed" })
     }
 
     fun konanc(sources: List<Path>, options: List<String>, output: Path) {
         check(Files.notExists(output))
-        val args = sources.map(Path::toString) + options + "-o" + output.toString()
-        // TODO use K2Native
-        val konanHome = "/Users/ppunegov/ws/kotlin-native/dist"
-        val compiler = Paths.get(konanHome, "bin/konanc")
-        val executeProcess = ProcessUtils.executeProcess(compiler.toString(), *args.toTypedArray())
-        assert(executeProcess.exitCode == 0, {
-            """Compiler $compiler exited with: ${executeProcess.exitCode}
-            |stdout: ${executeProcess.stdOut}
-            |stderr: ${executeProcess.stdErr}
-            """.trimMargin()
-        })
+        compile(compiler = Paths.get(konanHome, "bin/konanc").toString(),
+                options = sources.map(Path::toString) + options + "-o" + output.toString(),
+                output = output)
     }
 
     fun swiftc(sources: List<Path>, options: List<String>, output: Path) {
-        val swiftc = "swiftc"
-        val args = options + "-o" + output.toString() + sources.map(Path::toString)
-        compile(swiftc, args, output)
+        // FIXME: use appropriate swift dependency
+        compile(compiler = "swiftc",
+                options = options + "-o" + output.toString() + sources.map(Path::toString),
+                output = output)
+        check(output.toFile().exists(), { "Compiler swift hasn't produced output file: $output" })
     }
 
     fun clang(sources: List<Path>, options: List<String>, output: Path) {
-        // FIXME use Clang from the sysroot by using the project properties: ExecClang, shared?
-        val compiler = "clang"
-        val args = options + "-o" + output.toString() + sources.map(Path::toString)
-        compile(compiler, args, output)
+        // FIXME use Clang from the sysroot by using the project properties: ExecClang
+        compile(compiler = "clang",
+                options = options + "-o" + output.toString() + sources.map(Path::toString),
+                output = output)
     }
 }
 
@@ -82,41 +80,37 @@ object ProcessUtils {
 }
 
 fun cleanupOutDir() {
-    val outDirPath = Paths.get(PROJECT_DIR, "test-out")
+    val outDirPath = Paths.get(testOutput)
     outDirPath.toFile().deleteRecursively()
     outDirPath.toFile().mkdir()
 }
 
 fun compileAndRun(ktl: Path, swift: Path, objc: Path) {
-    cleanupOutDir()
-
     val kotlinSrcName = ktl.fileName.toString().substringBefore(".kt")
     require(kotlinSrcName.isNotEmpty(), { "Incorrect framework name" })
     val framework = kotlinSrcName[0].toUpperCase() + kotlinSrcName.substring(1)
 
     // Produce framework from Kotlin file
     var options = listOf("-produce", "framework", "-opt")
-    var output = Paths.get(PROJECT_DIR, "test-out", framework)
+    var output = Paths.get(testOutput, framework)
     CompilerUtils.konanc(listOf(ktl), options, output)
 
     // Compile and run Swift test
-    val fwPath = Paths.get(PROJECT_DIR, "test-out").toString()
+    val fwPath = Paths.get(testOutput).toString()
     options = listOf("-g", "-Xlinker", "-rpath", "-Xlinker", fwPath, "-F", fwPath)
-    output = Paths.get(PROJECT_DIR, "test-out/swift.exec")
+    output = Paths.get(testOutput, "swift.exec")
     CompilerUtils.swiftc(listOf(swift), options, output)
 
-    // TODO: always show compilation output
-    // TODO: explain failure
-
     val result = ProcessUtils.executeProcess(output.toString())
-    assert(result.exitCode == 0, {
+    check(result.exitCode == 0, {
             "Execution failed with exit code: ${result.exitCode}\n" +
             "stdout/err:\n" + result.stdOut + result.stdErr})
     println(result.stdOut)
+    println(result.stdErr)
 
     // Compile and run Objective-C test
 //    options += listOf("-fobjc-arc", "-framework", framework)
-//    output = Paths.get(PROJECT_DIR, "test-out/objc.exec")
+//    output = Paths.get(testHome, "test-out/objc.exec")
 //    CompilerUtils.clang(listOf(objc), options, output)
 //
 //    result = ProcessUtils.executeProcess(output.toString())

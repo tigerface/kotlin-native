@@ -196,7 +196,7 @@ func testGenericsFoo() throws {
     try assertEquals(actual: res as! String, expected: "S 42")
 }
 
-// FIXME: crashes with assert
+
 //func testVararg() throws {
 //    let ktArray = ValuesStdlibArray(size: 3, init: { (_) -> Int in return 42 })
 //    let arr: [Int] = Values.varargToList(args: ktArray) as! [Int]
@@ -249,14 +249,18 @@ func testInterfaceExtension() throws {
 
 func testClassInstances() throws {
     try assertEquals(actual: ValuesOpenClassI().iFun(), expected: "OpenClassI::iFun")
-    // FIXME: crashes
-//    try assertEquals(actual: ValuesDefaultInterfaceExt().iFun(), expected: "I::iFun")
+    try assertEquals(actual: ValuesDefaultInterfaceExt().iFun(), expected: "I::iFun")
     try assertEquals(actual: ValuesFinalClassExtOpen().iFun(), expected: "FinalClassExtOpen::iFun")
-    // FIXME: crashes
-//    try assertEquals(actual: ValuesMultiExtClass().iFun(), expected: "PI::iFun")
-//    try assertEquals(actual: ValuesMultiExtClass().piFun() as! Int, expected: 42)
+    try assertEquals(actual: ValuesMultiExtClass().iFun(), expected: "PI::iFun")
+    try assertEquals(actual: ValuesMultiExtClass().piFun() as! Int, expected: 42)
     try assertEquals(actual: ValuesConstrClass(i: 1, s: "str", a: "Any").iFun(), expected: "OpenClassI::iFun")
     try assertEquals(actual: ValuesExtConstrClass(i: 123).iFun(), expected: "ExtConstrClass::iFun::123-String-AnyS")
+}
+
+func testEnum() throws {
+    try assertEquals(actual: Values.passEnum().enumValue, expected: 42)
+    try assertEquals(actual: Values.passEnum().name, expected: "ANSWER")
+    Values.receiveEnum(e: 1)
 }
 
 // -------- Execution of the test --------
@@ -275,7 +279,7 @@ func main() {
         try testFunctions()
         try testFuncType()
         try testGenericsFoo()
-        // try testVararg() FIXME
+//        try testVararg()
         try testStrExtFun()
         try testAnyToString()
         try testAnyPrint()
@@ -283,6 +287,7 @@ func main() {
 
         try testInterfaceExtension()
         try testClassInstances()
+        try testEnum()
     } catch {
         print("Tests failed: \(error)")
         abort()
