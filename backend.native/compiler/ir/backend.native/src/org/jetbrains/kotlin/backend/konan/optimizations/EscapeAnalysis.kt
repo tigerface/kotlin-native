@@ -333,9 +333,15 @@ internal object EscapeAnalysis {
                 }
             }
             for (graph in pointsToGraphs.values) {
-                graph.nodes.keys
-                        .filterIsInstance<DataFlowIR.Node.Call>()
-                        .forEach { call -> call.callSite?.let { lifetimes.put(it, graph.lifetimeOf(call)) } }
+                for (node in graph.nodes.keys) {
+                    val ir = when (node) {
+                        is DataFlowIR.Node.Call -> node.callSite
+                        is DataFlowIR.Node.ArrayRead -> node.callSite
+                        is DataFlowIR.Node.FieldRead -> node.ir
+                        else -> null
+                    }
+                    ir?.let { lifetimes.put(it, graph.lifetimeOf(node)) }
+                }
             }
         }
 
@@ -460,8 +466,8 @@ internal object EscapeAnalysis {
                     }
 
                     PointsToGraphNodeKind.RETURN_VALUE -> {
-                        when {
-                            it.parameterPointingOnUs != null -> Lifetime.GLOBAL
+                        when {// TODO
+                            //it.parameterPointingOnUs != null -> Lifetime.PARAMETER_FIELD(it.parameterPointingOnUs!!)//Lifetime.GLOBAL
                             // If a value is explicitly returned.
                             returnValues.contains(node) -> Lifetime.RETURN_VALUE
                             // A value is stored into a field of the return value.

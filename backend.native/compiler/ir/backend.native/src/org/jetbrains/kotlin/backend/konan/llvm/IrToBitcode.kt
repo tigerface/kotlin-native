@@ -952,7 +952,7 @@ internal class CodeGeneratorVisitor(val context: Context, val lifetimes: Map<IrE
 
                 // Pointer to Kotlin exception object:
                 // We do need a slot here, as otherwise exception instance could be freed by _cxa_end_catch.
-                val exceptionPtr = functionGenerationContext.loadSlot(exceptionPtrPtr, true, "exception")
+                val exceptionPtr = functionGenerationContext.loadSlot(exceptionPtrPtr, true, Lifetime.IRRELEVANT, "exception")
 
                 // __cxa_end_catch performs some C++ cleanup, including calling `KotlinException` class destructor.
                 val endCatch = context.llvm.cxaEndCatchFunction
@@ -1314,12 +1314,12 @@ internal class CodeGeneratorVisitor(val context: Context, val lifetimes: Map<IrE
         if (value.descriptor.dispatchReceiverParameter != null) {
             val thisPtr = evaluateExpression(value.receiver!!)
             return functionGenerationContext.loadSlot(
-                    fieldPtrOfClass(thisPtr, value.descriptor), value.descriptor.isVar())
+                    fieldPtrOfClass(thisPtr, value.descriptor), value.descriptor.isVar(), resultLifetime(value))
         }
         else {
             assert (value.receiver == null)
             val ptr = context.llvmDeclarations.forStaticField(value.descriptor).storage
-            return functionGenerationContext.loadSlot(ptr, value.descriptor.isVar())
+            return functionGenerationContext.loadSlot(ptr, value.descriptor.isVar(), resultLifetime(value))
         }
     }
 

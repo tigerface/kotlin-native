@@ -999,7 +999,7 @@ internal object DFGSerializer {
                             NodeType.FIELD_READ -> {
                                 val fieldRead = it.fieldRead!!
                                 val receiver = fieldRead.receiver?.let { deserializeEdge(it) }
-                                DataFlowIR.Node.FieldRead(receiver, deserializeField(fieldRead.field))
+                                DataFlowIR.Node.FieldRead(receiver, deserializeField(fieldRead.field), null)
                             }
 
                             NodeType.FIELD_WRITE -> {
@@ -1010,7 +1010,7 @@ internal object DFGSerializer {
 
                             NodeType.ARRAY_READ -> {
                                 val arrayRead = it.arrayRead!!
-                                DataFlowIR.Node.ArrayRead(deserializeEdge(arrayRead.array), deserializeEdge(arrayRead.index))
+                                DataFlowIR.Node.ArrayRead(deserializeEdge(arrayRead.array), deserializeEdge(arrayRead.index), null)
                             }
 
                             NodeType.ARRAY_WRITE -> {

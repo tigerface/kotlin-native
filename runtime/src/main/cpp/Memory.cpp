@@ -599,7 +599,7 @@ void MarkGray(ContainerHeader* container) {
   }
   traverseContainerReferredObjects(container, [](ObjHeader* ref) {
     auto childContainer = ref->container();
-    RuntimeAssert(!isArena(childContainer), "A reference to local object is encountered");
+    //RuntimeAssert(!isArena(childContainer), "A reference to local object is encountered");
     if (!isPermanent(childContainer)) {
       childContainer->decRefCount();
       MarkGray<useColor>(childContainer);
@@ -618,7 +618,7 @@ void ScanBlack(ContainerHeader* container) {
   }
   traverseContainerReferredObjects(container, [](ObjHeader* ref) {
     auto childContainer = ref->container();
-    RuntimeAssert(!isArena(childContainer), "A reference to local object is encountered");
+    //RuntimeAssert(!isArena(childContainer), "A reference to local object is encountered");
     if (!isPermanent(childContainer)) {
       childContainer->incRefCount();
       if (useColor) {
@@ -682,7 +682,7 @@ void Scan(ContainerHeader* container) {
   container->setColor(CONTAINER_TAG_GC_WHITE);
   traverseContainerReferredObjects(container, [](ObjHeader* ref) {
     auto childContainer = ref->container();
-    RuntimeAssert(!isArena(childContainer), "A reference to local object is encountered");
+    //RuntimeAssert(!isArena(childContainer), "A reference to local object is encountered");
     if (!isPermanent(childContainer)) {
       Scan(childContainer);
     }
@@ -696,7 +696,7 @@ void CollectWhite(MemoryState* state, ContainerHeader* container) {
   container->setColor(CONTAINER_TAG_GC_BLACK);
   traverseContainerReferredObjects(container, [state](ObjHeader* ref) {
     auto childContainer = ref->container();
-    RuntimeAssert(!isArena(childContainer), "A reference to local object is encountered");
+    //RuntimeAssert(!isArena(childContainer), "A reference to local object is encountered");
     if (!isPermanent(childContainer)) {
       CollectWhite(state, childContainer);
     }
@@ -1018,6 +1018,11 @@ OBJ_GETTER(AllocInstance, const TypeInfo* type_info) {
     MEMORY_LOG("instance %p in arena: %p\n", result, arena)
     return result;
   }
+//  konan::consolePrintf("Alloc with RC: ");
+//  Kotlin_io_Console_print(reinterpret_cast<KString>(type_info->packageName_));
+//  konan::consolePrintf(".");
+//  Kotlin_io_Console_print(reinterpret_cast<KString>(type_info->relativeName_));
+//  konan::consolePrintf("\n");
   RETURN_OBJ(ObjectContainer(type_info).GetPlace());
 }
 
@@ -1029,6 +1034,11 @@ OBJ_GETTER(AllocArrayInstance, const TypeInfo* type_info, uint32_t elements) {
     MEMORY_LOG("array[%d] %p in arena: %p\n", elements, result, arena)
     return result;
   }
+//  konan::consolePrintf("Alloc array with RC: ");
+//  Kotlin_io_Console_print(reinterpret_cast<KString>(type_info->packageName_));
+//  konan::consolePrintf(".");
+//  Kotlin_io_Console_print(reinterpret_cast<KString>(type_info->relativeName_));
+//  konan::consolePrintf("\n");
   RETURN_OBJ(ArrayContainer(type_info, elements).GetPlace()->obj());
 }
 
@@ -1089,17 +1099,21 @@ ObjHeader** GetParamSlotIfArena(ObjHeader* param, ObjHeader** localSlot) {
 }
 
 void UpdateReturnRef(ObjHeader** returnSlot, const ObjHeader* object) {
-  if (isArenaSlot(returnSlot)) {
-    // Not a subject of reference counting.
-    if (object == nullptr || !isRefCounted(object)) return;
-    auto arena = initedArena(asArenaSlot(returnSlot));
-    returnSlot = arena->getSlot();
-  }
   UpdateRef(returnSlot, object);
 }
 
 void UpdateRef(ObjHeader** location, const ObjHeader* object) {
-  RuntimeAssert(!isArenaSlot(location), "must not be a slot");
+//  RuntimeAssert(!isArenaSlot(location), "must not be a slot");
+  if (isArenaSlot(location)) {
+//    konan::consolePrintf("UpdateReturnRef - isArenaSlot\n");
+    // Not a subject of reference counting.
+    if (object == nullptr || !isRefCounted(object)) return;
+//    konan::consolePrintf("UpdateReturnRef - object is ref counted\n");
+    auto arena = initedArena(asArenaSlot(location));
+    location = arena->getSlot();
+  }
+//  konan::consolePrintf("UpdateReturnRef - RC\n");
+
   ObjHeader* old = *location;
   UPDATE_REF_EVENT(memoryState, old, object, location)
   if (old != object) {
@@ -1151,6 +1165,7 @@ void GarbageCollect() {
   RuntimeAssert(!state->gcInProgress, "Recursive GC is disallowed");
 
   MEMORY_LOG("Garbage collect\n")
+  konan::consolePrintf("GC\n");
 
   state->gcInProgress = true;
 

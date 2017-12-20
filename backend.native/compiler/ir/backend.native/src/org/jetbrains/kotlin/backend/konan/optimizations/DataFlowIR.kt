@@ -35,6 +35,7 @@ import org.jetbrains.kotlin.ir.declarations.IrFunction
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
 import org.jetbrains.kotlin.ir.expressions.IrCall
 import org.jetbrains.kotlin.ir.expressions.IrFunctionAccessExpression
+import org.jetbrains.kotlin.ir.expressions.IrGetField
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
 import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 import org.jetbrains.kotlin.name.FqName
@@ -213,11 +214,11 @@ internal object DataFlowIR {
 
         class Singleton(val type: Type, val constructor: FunctionSymbol?) : Node()
 
-        class FieldRead(val receiver: Edge?, val field: Field) : Node()
+        class FieldRead(val receiver: Edge?, val field: Field, val ir: IrGetField?) : Node()
 
         class FieldWrite(val receiver: Edge?, val field: Field, val value: Edge) : Node()
 
-        class ArrayRead(val array: Edge, val index: Edge) : Node()
+        class ArrayRead(val array: Edge, val index: Edge, val callSite: IrCall?) : Node()
 
         class ArrayWrite(val array: Edge, val index: Edge, val value: Edge) : Node()
 

@@ -510,7 +510,7 @@ internal class ModuleDFGBuilder(val context: Context, val irModule: IrModuleFrag
                                 if (value.symbol == getContinuationSymbol) {
                                     getContinuation()
                                 } else if (value.symbol == arrayGetSymbol) {
-                                    DataFlowIR.Node.ArrayRead(expressionToEdge(value.dispatchReceiver!!), expressionToEdge(value.getValueArgument(0)!!))
+                                    DataFlowIR.Node.ArrayRead(expressionToEdge(value.dispatchReceiver!!), expressionToEdge(value.getValueArgument(0)!!), value)
                                 } else if (value.symbol == arraySetSymbol) {
                                     DataFlowIR.Node.ArrayWrite(expressionToEdge(value.dispatchReceiver!!),
                                             expressionToEdge(value.getValueArgument(0)!!), expressionToEdge(value.getValueArgument(1)!!))
@@ -593,7 +593,8 @@ internal class ModuleDFGBuilder(val context: Context, val irModule: IrModuleFrag
                                                 receiverType,
                                                 name.localHash.value,
                                                 takeName { name }
-                                        )
+                                        ),
+                                        value
                                 )
                             }
 

@@ -24,7 +24,6 @@ import org.jetbrains.kotlin.backend.konan.descriptors.isInterface
 import org.jetbrains.kotlin.backend.konan.descriptors.stdlibModule
 import org.jetbrains.kotlin.backend.konan.isObjCClass
 import org.jetbrains.kotlin.descriptors.ClassConstructorDescriptor
-import org.jetbrains.kotlin.konan.target.KonanTarget
 import org.jetbrains.kotlin.descriptors.ClassDescriptor
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
 
@@ -208,10 +207,10 @@ internal class FunctionGenerationContext(val function: LLVMValueRef,
         return result
     }
 
-    fun loadSlot(address: LLVMValueRef, isVar: Boolean, name: String = ""): LLVMValueRef {
+    fun loadSlot(address: LLVMValueRef, isVar: Boolean, resultLifetime: Lifetime = Lifetime.IRRELEVANT, name: String = ""): LLVMValueRef {
         val value = LLVMBuildLoad(builder, address, name)!!
         if (isObjectRef(value) && isVar) {
-            val slot = alloca(LLVMTypeOf(value), variableLocation = null)
+            val slot = lifetimeToSlot(resultLifetime)//alloca(LLVMTypeOf(value), variableLocation = null)
             storeAny(value, slot)
         }
         return value
@@ -251,42 +250,48 @@ internal class FunctionGenerationContext(val function: LLVMValueRef,
         val callArgs = if (!isObjectReturn(llvmFunction.type)) {
             args
         } else {
-            // If function returns an object - create slot for the returned value or give local arena.
-            // This allows appropriate rootset accounting by just looking at the stack slots,
-            // along with ability to allocate in appropriate arena.
-            val resultSlot = when (resultLifetime.slotType) {
-                SlotType.ARENA -> {
-                    localAllocs++
-                    arenaSlot!!
-                }
-
-                SlotType.RETURN -> returnSlot!!
-
-                SlotType.ANONYMOUS -> vars.createAnonymousSlot()
-
-                SlotType.RETURN_IF_ARENA -> returnSlot.let {
-                    if (it != null)
-                        call(context.llvm.getReturnSlotIfArenaFunction, listOf(it, vars.createAnonymousSlot()))
-                    else {
-                        // Return type is not an object type - can allocate locally.
-                        localAllocs++
-                        arenaSlot!!
-                    }
-                }
-
-                is SlotType.PARAM_IF_ARENA ->
-                    if (LLVMTypeOf(vars.load(resultLifetime.slotType.parameter)) != codegen.runtime.objHeaderPtrType)
-                        vars.createAnonymousSlot()
-                    else {
-                        call(context.llvm.getParamSlotIfArenaFunction,
-                                listOf(vars.load(resultLifetime.slotType.parameter), vars.createAnonymousSlot()))
-                    }
-
-                else -> throw Error("Incorrect slot type: ${resultLifetime.slotType}")
-            }
+            val resultSlot = lifetimeToSlot(resultLifetime)
             args + resultSlot
         }
         return callRaw(llvmFunction, callArgs, lazyLandingpad)
+    }
+
+    private fun lifetimeToSlot(lifetime: Lifetime): LLVMValueRef {
+        // If function returns an object - create slot for the returned value or give local arena.
+        // This allows appropriate rootset accounting by just looking at the stack slots,
+        // along with ability to allocate in appropriate arena.
+        return when (lifetime.slotType) {
+            SlotType.ARENA -> {
+                localAllocs++
+                arenaSlot!!
+            }
+
+            SlotType.RETURN -> returnSlot!!
+
+            SlotType.ANONYMOUS,
+            SlotType.UNKNOWN -> vars.createAnonymousSlot()
+
+            SlotType.RETURN_IF_ARENA -> returnSlot.let {
+                if (it != null)
+                    call(context.llvm.getReturnSlotIfArenaFunction, listOf(it, vars.createAnonymousSlot()))
+                else {
+                    // Return type is not an object type - can allocate locally.
+                    localAllocs++
+                    arenaSlot!!
+                }
+            }
+
+            is SlotType.PARAM_IF_ARENA ->
+                if (LLVMTypeOf(param(lifetime.slotType.parameter)) != codegen.runtime.objHeaderPtrType)
+                    vars.createAnonymousSlot()
+                else {
+                    call(context.llvm.getParamSlotIfArenaFunction,
+                            listOf(param(lifetime.slotType.parameter), vars.createAnonymousSlot()))
+                }
+
+            else -> throw Error("Incorrect slot type: ${lifetime.slotType}")
+        }
+
     }
 
     private fun callRaw(llvmFunction: LLVMValueRef, args: List<LLVMValueRef>,
