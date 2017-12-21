@@ -370,6 +370,8 @@ void* GetReservedObjectTail(ObjHeader* obj) RUNTIME_NOTHROW;
 void SetRef(ObjHeader** location, const ObjHeader* object) RUNTIME_NOTHROW;
 // Updates location.
 void UpdateRef(ObjHeader** location, const ObjHeader* object) RUNTIME_NOTHROW;
+// Updates location.
+bool NeedUpdateRef(ObjHeader** location, const ObjHeader* object) RUNTIME_NOTHROW;
 // Updates reference in return slot.
 void UpdateReturnRef(ObjHeader** returnSlot, const ObjHeader* object) RUNTIME_NOTHROW;
 // Optimization: release all references in range.

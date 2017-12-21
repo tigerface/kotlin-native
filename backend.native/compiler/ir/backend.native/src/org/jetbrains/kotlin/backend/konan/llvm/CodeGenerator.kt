@@ -231,11 +231,18 @@ internal class FunctionGenerationContext(val function: LLVMValueRef,
     }
 
     private fun updateReturnRef(value: LLVMValueRef, address: LLVMValueRef) {
-        call(context.llvm.updateReturnRefFunction, listOf(address, value))
+        updateRef(value, address)
     }
 
     private fun updateRef(value: LLVMValueRef, address: LLVMValueRef) {
-        call(context.llvm.updateRefFunction, listOf(address, value))
+        val bbCallUpdateRef = basicBlock("callUpdateRef", null)
+        val bbDoNothing = basicBlock("doNotCallUpdateRef", null)
+        condBr(call(context.llvm.needUpdateRefFunction, listOf(address, value)), bbCallUpdateRef, bbDoNothing)
+        appendingTo(bbCallUpdateRef) {
+            call(context.llvm.updateRefFunction, listOf(address, value))
+            br(bbDoNothing)
+        }
+        positionAtEnd(bbDoNothing)
     }
 
     //-------------------------------------------------------------------------//

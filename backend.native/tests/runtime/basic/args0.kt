@@ -239,7 +239,7 @@ fun main(args: Array<String>) {
 // //    val array = Array(2) { Value(it) }
 // //    array.forEach { Blackhole.consume(it) }
     var numWarmIterations    =  1000       // Should be 100000 for jdk based run
-    var numMeasureIterations =  1000000
+    var numMeasureIterations =  5000000
 
     if (args.size == 2) {
         numWarmIterations    = args[0].toInt()

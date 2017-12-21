@@ -1102,17 +1102,17 @@ void UpdateReturnRef(ObjHeader** returnSlot, const ObjHeader* object) {
   UpdateRef(returnSlot, object);
 }
 
+bool NeedUpdateRef(ObjHeader** location, const ObjHeader* object) {
+  return !isArenaSlot(location) || (object != nullptr && isRefCounted(object));
+}
+
 void UpdateRef(ObjHeader** location, const ObjHeader* object) {
-//  RuntimeAssert(!isArenaSlot(location), "must not be a slot");
   if (isArenaSlot(location)) {
-//    konan::consolePrintf("UpdateReturnRef - isArenaSlot\n");
     // Not a subject of reference counting.
     if (object == nullptr || !isRefCounted(object)) return;
-//    konan::consolePrintf("UpdateReturnRef - object is ref counted\n");
     auto arena = initedArena(asArenaSlot(location));
     location = arena->getSlot();
   }
-//  konan::consolePrintf("UpdateReturnRef - RC\n");
 
   ObjHeader* old = *location;
   UPDATE_REF_EVENT(memoryState, old, object, location)
