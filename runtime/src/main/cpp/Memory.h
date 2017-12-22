@@ -254,6 +254,10 @@ class ArrayContainer : public Container {
 // whole container can be freed, individual objects are not taken into account.
 class ArenaContainer;
 
+struct FrameOverlay {
+  ArenaContainer* arena;
+};
+
 struct ContainerChunk {
   ContainerChunk* next;
   ArenaContainer* arena;
@@ -265,6 +269,8 @@ struct ContainerChunk {
 
 class ArenaContainer {
  public:
+  ArenaContainer(FrameOverlay* frame): frame_(frame)
+   { }
   void Init();
   void Deinit();
 
@@ -278,6 +284,7 @@ class ArenaContainer {
 
   ObjHeader** getSlot();
 
+  FrameOverlay* frame_;
  private:
   void* place(container_size_t size);
   bool allocContainer(container_size_t minSize);
@@ -384,6 +391,13 @@ void LeaveFrame(ObjHeader** start, int parameters, int count) RUNTIME_NOTHROW;
 ObjHeader** GetReturnSlotIfArena(ObjHeader** returnSlot, ObjHeader** localSlot) RUNTIME_NOTHROW;
 // Tries to use param's arena for allocation.
 ObjHeader** GetParamSlotIfArena(ObjHeader* param, ObjHeader** localSlot) RUNTIME_NOTHROW;
+ObjHeader** ChooseAppropriateSlotIfArena_Param2(ObjHeader* param1, ObjHeader* param2, ObjHeader** localSlot) RUNTIME_NOTHROW;
+ObjHeader** ChooseAppropriateSlotIfArena_Param3(ObjHeader* param1, ObjHeader* param2, ObjHeader* param3, ObjHeader** localSlot) RUNTIME_NOTHROW;
+ObjHeader** ChooseAppropriateSlotIfArena_Param4(ObjHeader* param1, ObjHeader* param2, ObjHeader* param3, ObjHeader* param4, ObjHeader** localSlot) RUNTIME_NOTHROW;
+ObjHeader** ChooseAppropriateSlotIfArena_Param_Return(ObjHeader* param, ObjHeader** returnSlot, ObjHeader** localSlot) RUNTIME_NOTHROW;
+ObjHeader** ChooseAppropriateSlotIfArena_Param2_Return(ObjHeader* param1, ObjHeader* param2, ObjHeader** returnSlot, ObjHeader** localSlot) RUNTIME_NOTHROW;
+ObjHeader** ChooseAppropriateSlotIfArena_Param3_Return(ObjHeader* param1, ObjHeader* param2, ObjHeader* param3, ObjHeader** returnSlot, ObjHeader** localSlot) RUNTIME_NOTHROW;
+ObjHeader** ChooseAppropriateSlotIfArena_Param4_Return(ObjHeader* param1, ObjHeader* param2, ObjHeader* param3, ObjHeader* param4, ObjHeader** returnSlot, ObjHeader** localSlot) RUNTIME_NOTHROW;
 // Collect garbage, which cannot be found by reference counting (cycles).
 void GarbageCollect() RUNTIME_NOTHROW;
 // Clears object subgraph references from memory subsystem, and optionally

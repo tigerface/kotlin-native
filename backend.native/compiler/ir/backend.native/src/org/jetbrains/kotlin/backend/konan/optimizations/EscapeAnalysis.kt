@@ -428,14 +428,14 @@ internal object EscapeAnalysis {
 
             val beingReturned = roles.has(Role.RETURN_VALUE)
 
-            var parameterPointingOnUs: Int? = null
-            var pointsMoreThanOneParameter = false
+            val parametersPointingOnUs = mutableSetOf<Int>()
 
             fun addIncomingParameter(parameter: Int) {
-                if (pointsMoreThanOneParameter) return
-                if (parameterPointingOnUs == null)
-                    parameterPointingOnUs = parameter
-                else pointsMoreThanOneParameter = true
+                if (kind == PointsToGraphNodeKind.ESCAPES) return
+                parametersPointingOnUs += parameter
+                if (parametersPointingOnUs.size >= 5) {
+                    kind = PointsToGraphNodeKind.ESCAPES
+                }
             }
         }
 
@@ -451,23 +451,24 @@ internal object EscapeAnalysis {
                     PointsToGraphNodeKind.ESCAPES -> Lifetime.GLOBAL
 
                     PointsToGraphNodeKind.LOCAL -> {
-                        if (it.pointsMoreThanOneParameter)
-                            Lifetime.GLOBAL
-                        else {
-                            val parameterPointingOnUs = it.parameterPointingOnUs
-                            if (parameterPointingOnUs != null)
+                        if (it.parametersPointingOnUs.isEmpty()) {
+                            // A value is neither stored into a global nor into any parameter nor into the return value -
+                            // it can be allocated locally.
+                            Lifetime.LOCAL
+                        } else {
+                            if (it.parametersPointingOnUs.size == 1) { // TODO: remove.
                                 // A value is stored into a parameter field.
-                                Lifetime.PARAMETER_FIELD(parameterPointingOnUs)
-                            else
-                                // A value is neither stored into a global nor into any parameter nor into the return value -
-                                // it can be allocated locally.
-                                Lifetime.LOCAL
+                                Lifetime.PARAMETER_FIELD(it.parametersPointingOnUs.first())
+                            } else {
+                                // A value is stored into several parameters fields.
+                                Lifetime.PARAMETERS_FIELD(it.parametersPointingOnUs.toIntArray(), false)
+                            }
                         }
                     }
 
                     PointsToGraphNodeKind.RETURN_VALUE -> {
-                        when {// TODO
-                            //it.parameterPointingOnUs != null -> Lifetime.PARAMETER_FIELD(it.parameterPointingOnUs!!)//Lifetime.GLOBAL
+                        when {
+                            it.parametersPointingOnUs.isNotEmpty() -> Lifetime.PARAMETERS_FIELD(it.parametersPointingOnUs.toIntArray(), true)
                             // If a value is explicitly returned.
                             returnValues.contains(node) -> Lifetime.RETURN_VALUE
                             // A value is stored into a field of the return value.

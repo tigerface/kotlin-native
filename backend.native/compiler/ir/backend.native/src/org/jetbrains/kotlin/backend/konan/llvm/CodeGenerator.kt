@@ -267,6 +267,44 @@ internal class FunctionGenerationContext(val function: LLVMValueRef,
         // If function returns an object - create slot for the returned value or give local arena.
         // This allows appropriate rootset accounting by just looking at the stack slots,
         // along with ability to allocate in appropriate arena.
+
+        // TODO: use in all cases.
+        fun chooseArena(parameters: IntArray, useReturn: Boolean): LLVMValueRef {
+            val objectParameters = parameters.filter { LLVMTypeOf(param(it)) == codegen.runtime.objHeaderPtrType }
+            if (useReturn && returnSlot != null) {
+                return when (objectParameters.size) {
+                    0 -> call(context.llvm.getReturnSlotIfArenaFunction,
+                            listOf(returnSlot!!, vars.createAnonymousSlot()))
+                    1 -> call(context.llvm.chooseAppropriateSlotIfArena_Param_Return,
+                            listOf(param(objectParameters[0]), returnSlot!!, vars.createAnonymousSlot()))
+                    2 -> call(context.llvm.chooseAppropriateSlotIfArena_Param2_Return,
+                            listOf(param(objectParameters[0]), param(objectParameters[1]), returnSlot!!, vars.createAnonymousSlot()))
+                    3 -> call(context.llvm.chooseAppropriateSlotIfArena_Param3_Return,
+                            listOf(param(objectParameters[0]), param(objectParameters[1]), param(objectParameters[2]), returnSlot!!, vars.createAnonymousSlot()))
+                    4 -> call(context.llvm.chooseAppropriateSlotIfArena_Param4_Return,
+                            listOf(param(objectParameters[0]), param(objectParameters[1]), param(objectParameters[2]), param(objectParameters[3]), returnSlot!!, vars.createAnonymousSlot()))
+                    else -> error("Unsupported number of parameters: ${objectParameters.size}")
+                }
+            } else {
+                return when(objectParameters.size) {
+                    0 -> {
+                        // Return type is not an object type - can allocate locally.
+                        localAllocs++
+                        arenaSlot!!
+                    }
+                    1 -> call(context.llvm.getParamSlotIfArenaFunction,
+                            listOf(param(objectParameters[0]), vars.createAnonymousSlot()))
+                    2 -> call(context.llvm.chooseAppropriateSlotIfArena_Param2Function,
+                            listOf(param(objectParameters[0]), param(objectParameters[1]), vars.createAnonymousSlot()))
+                    3 -> call(context.llvm.chooseAppropriateSlotIfArena_Param3Function,
+                            listOf(param(objectParameters[0]), param(objectParameters[1]), param(objectParameters[2]), vars.createAnonymousSlot()))
+                    4 -> call(context.llvm.chooseAppropriateSlotIfArena_Param4Function,
+                            listOf(param(objectParameters[0]), param(objectParameters[1]), param(objectParameters[2]), param(objectParameters[3]), vars.createAnonymousSlot()))
+                    else -> error("Unsupported number of parameters: ${objectParameters.size}")
+                }
+            }
+        }
+
         return when (lifetime.slotType) {
             SlotType.ARENA -> {
                 localAllocs++
@@ -295,6 +333,10 @@ internal class FunctionGenerationContext(val function: LLVMValueRef,
                     call(context.llvm.getParamSlotIfArenaFunction,
                             listOf(param(lifetime.slotType.parameter), vars.createAnonymousSlot()))
                 }
+
+            is SlotType.PARAMS_IF_ARENA -> {
+                chooseArena(lifetime.slotType.parameters, lifetime.slotType.useReturnSlot)
+            }
 
             else -> throw Error("Incorrect slot type: ${lifetime.slotType}")
         }

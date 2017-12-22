@@ -48,8 +48,10 @@ internal sealed class SlotType {
     class RETURN: SlotType()
     // Return slot, if it is an arena, can be used.
     class RETURN_IF_ARENA: SlotType()
-    // Return slot, if it is an arena, can be used.
+    // Param slot, if it is an arena, can be used.
     class PARAM_IF_ARENA(val parameter: Int): SlotType()
+    // Params slot, if it is an arena, can be used.
+    class PARAMS_IF_ARENA(val parameters: IntArray, val useReturnSlot: Boolean): SlotType()
     // Anonymous slot.
     class ANONYMOUS: SlotType()
     // Unknown slot type.
@@ -91,6 +93,14 @@ internal sealed class Lifetime(val slotType: SlotType) {
     class PARAMETER_FIELD(val parameter: Int): Lifetime(SlotType.PARAM_IF_ARENA(parameter)) {
         override fun toString(): String {
             return "PARAMETER_FIELD($parameter)"
+        }
+    }
+
+    // If reference is stored to the field of an incoming parameters.
+    class PARAMETERS_FIELD(val parameters: IntArray, val useReturnSlot: Boolean)
+        : Lifetime(SlotType.PARAMS_IF_ARENA(parameters, useReturnSlot)) {
+        override fun toString(): String {
+            return "PARAMETERS_FIELD(${parameters.contentToString()}, useReturnSlot='$useReturnSlot')"
         }
     }
 
@@ -383,6 +393,13 @@ internal class Llvm(val context: Context, val llvmModule: LLVMModuleRef) {
     val leaveFrameFunction = importRtFunction("LeaveFrame")
     val getReturnSlotIfArenaFunction = importRtFunction("GetReturnSlotIfArena")
     val getParamSlotIfArenaFunction = importRtFunction("GetParamSlotIfArena")
+    val chooseAppropriateSlotIfArena_Param2Function = importRtFunction("ChooseAppropriateSlotIfArena_Param2")
+    val chooseAppropriateSlotIfArena_Param3Function = importRtFunction("ChooseAppropriateSlotIfArena_Param3")
+    val chooseAppropriateSlotIfArena_Param4Function = importRtFunction("ChooseAppropriateSlotIfArena_Param4")
+    val chooseAppropriateSlotIfArena_Param_Return = importRtFunction("ChooseAppropriateSlotIfArena_Param_Return")
+    val chooseAppropriateSlotIfArena_Param2_Return = importRtFunction("ChooseAppropriateSlotIfArena_Param2_Return")
+    val chooseAppropriateSlotIfArena_Param3_Return = importRtFunction("ChooseAppropriateSlotIfArena_Param3_Return")
+    val chooseAppropriateSlotIfArena_Param4_Return = importRtFunction("ChooseAppropriateSlotIfArena_Param4_Return")
     val lookupOpenMethodFunction = importRtFunction("LookupOpenMethod")
     val isInstanceFunction = importRtFunction("IsInstance")
     val checkInstanceFunction = importRtFunction("CheckInstance")

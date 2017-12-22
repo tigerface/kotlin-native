@@ -80,10 +80,6 @@ typedef KStdVector<ContainerHeader*> ContainerHeaderList;
 typedef KStdVector<KRef*> KRefPtrList;
 #endif
 
-struct FrameOverlay {
-  ArenaContainer* arena;
-};
-
 // A little hack that allows to enable -O2 optimizations
 // Prevents clang from replacing FrameOverlay struct
 // with single pointer.
@@ -599,7 +595,7 @@ void MarkGray(ContainerHeader* container) {
   }
   traverseContainerReferredObjects(container, [](ObjHeader* ref) {
     auto childContainer = ref->container();
-    //RuntimeAssert(!isArena(childContainer), "A reference to local object is encountered");
+    RuntimeAssert(!isArena(childContainer), "A reference to local object is encountered");
     if (!isPermanent(childContainer)) {
       childContainer->decRefCount();
       MarkGray<useColor>(childContainer);
@@ -618,7 +614,7 @@ void ScanBlack(ContainerHeader* container) {
   }
   traverseContainerReferredObjects(container, [](ObjHeader* ref) {
     auto childContainer = ref->container();
-    //RuntimeAssert(!isArena(childContainer), "A reference to local object is encountered");
+    RuntimeAssert(!isArena(childContainer), "A reference to local object is encountered");
     if (!isPermanent(childContainer)) {
       childContainer->incRefCount();
       if (useColor) {
@@ -682,7 +678,7 @@ void Scan(ContainerHeader* container) {
   container->setColor(CONTAINER_TAG_GC_WHITE);
   traverseContainerReferredObjects(container, [](ObjHeader* ref) {
     auto childContainer = ref->container();
-    //RuntimeAssert(!isArena(childContainer), "A reference to local object is encountered");
+    RuntimeAssert(!isArena(childContainer), "A reference to local object is encountered");
     if (!isPermanent(childContainer)) {
       Scan(childContainer);
     }
@@ -696,7 +692,7 @@ void CollectWhite(MemoryState* state, ContainerHeader* container) {
   container->setColor(CONTAINER_TAG_GC_BLACK);
   traverseContainerReferredObjects(container, [state](ObjHeader* ref) {
     auto childContainer = ref->container();
-    //RuntimeAssert(!isArena(childContainer), "A reference to local object is encountered");
+    RuntimeAssert(!isArena(childContainer), "A reference to local object is encountered");
     if (!isPermanent(childContainer)) {
       CollectWhite(state, childContainer);
     }
@@ -743,7 +739,7 @@ inline ArenaContainer* initedArena(ObjHeader** auxSlot) {
   auto frame = asFrameOverlay(auxSlot);
   auto arena = frame->arena;
   if (!arena) {
-    arena = konanConstructInstance<ArenaContainer>();
+    arena = konanConstructInstance<ArenaContainer>(frame);
     MEMORY_LOG("Initializing arena in %p\n", frame)
     arena->Init();
     frame->arena = arena;
@@ -1089,13 +1085,202 @@ ObjHeader** GetReturnSlotIfArena(ObjHeader** returnSlot, ObjHeader** localSlot) 
   return isArenaSlot(returnSlot) ? returnSlot : localSlot;
 }
 
-ObjHeader** GetParamSlotIfArena(ObjHeader* param, ObjHeader** localSlot) {
-  if (param == nullptr) return localSlot;
+ArenaContainer** GetParamArena(ObjHeader* param) {
+  if (param == nullptr) return nullptr;
   auto container = param->container();
   if ((container->refCount_ & CONTAINER_TAG_MASK) != CONTAINER_TAG_STACK)
-    return localSlot;
+    return nullptr;
   auto chunk = reinterpret_cast<ContainerChunk*>(container) - 1;
-  return reinterpret_cast<ObjHeader**>(reinterpret_cast<uintptr_t>(&chunk->arena) | ARENA_BIT);
+  return &chunk->arena;
+}
+
+ObjHeader** GetParamSlotIfArena(ObjHeader* param, ObjHeader** localSlot) {
+  auto arenaSlot = GetParamArena(param);
+  if (arenaSlot == nullptr) return localSlot;
+  return reinterpret_cast<ObjHeader**>(reinterpret_cast<uintptr_t>(arenaSlot) | ARENA_BIT);
+}
+
+ObjHeader** ChooseAppropriateSlotIfArena_Param2(ObjHeader* param1, ObjHeader* param2, ObjHeader** localSlot) {
+  uintptr_t resultFrame = 0;
+  ArenaContainer** resultArenaSlot = nullptr;
+  auto param1ArenaSlot = GetParamArena(param1);
+  auto param1ArenaFrame = param1ArenaSlot == nullptr ? 0 : reinterpret_cast<uintptr_t>((*param1ArenaSlot)->frame_);
+  if (param1ArenaFrame > resultFrame) {
+    resultFrame = param1ArenaFrame;
+    resultArenaSlot = param1ArenaSlot;
+  }
+  auto param2ArenaSlot = GetParamArena(param2);
+  auto param2ArenaFrame = param2ArenaSlot == nullptr ? 0 : reinterpret_cast<uintptr_t>((*param2ArenaSlot)->frame_);
+  if (param2ArenaFrame > resultFrame) {
+    resultFrame = param2ArenaFrame;
+    resultArenaSlot = param2ArenaSlot;
+  }
+  if (resultArenaSlot == nullptr) return localSlot;
+  return reinterpret_cast<ObjHeader**>(reinterpret_cast<uintptr_t>(resultArenaSlot) | ARENA_BIT);
+}
+
+ObjHeader** ChooseAppropriateSlotIfArena_Param3(ObjHeader* param1, ObjHeader* param2, ObjHeader* param3, ObjHeader** localSlot) {
+  uintptr_t resultFrame = 0;
+  ArenaContainer** resultArenaSlot = nullptr;
+  auto param1ArenaSlot = GetParamArena(param1);
+  auto param1ArenaFrame = param1ArenaSlot == nullptr ? 0 : reinterpret_cast<uintptr_t>((*param1ArenaSlot)->frame_);
+  if (param1ArenaFrame > resultFrame) {
+    resultFrame = param1ArenaFrame;
+    resultArenaSlot = param1ArenaSlot;
+  }
+  auto param2ArenaSlot = GetParamArena(param2);
+  auto param2ArenaFrame = param2ArenaSlot == nullptr ? 0 : reinterpret_cast<uintptr_t>((*param2ArenaSlot)->frame_);
+  if (param2ArenaFrame > resultFrame) {
+    resultFrame = param2ArenaFrame;
+    resultArenaSlot = param2ArenaSlot;
+  }
+  auto param3ArenaSlot = GetParamArena(param3);
+  auto param3ArenaFrame = param3ArenaSlot == nullptr ? 0 : reinterpret_cast<uintptr_t>((*param3ArenaSlot)->frame_);
+  if (param3ArenaFrame > resultFrame) {
+    resultFrame = param3ArenaFrame;
+    resultArenaSlot = param3ArenaSlot;
+  }
+  if (resultArenaSlot == nullptr) return localSlot;
+  return reinterpret_cast<ObjHeader**>(reinterpret_cast<uintptr_t>(resultArenaSlot) | ARENA_BIT);
+}
+
+ObjHeader** ChooseAppropriateSlotIfArena_Param4(ObjHeader* param1, ObjHeader* param2, ObjHeader* param3, ObjHeader* param4, ObjHeader** localSlot) {
+  uintptr_t resultFrame = 0;
+  ArenaContainer** resultArenaSlot = nullptr;
+  auto param1ArenaSlot = GetParamArena(param1);
+  auto param1ArenaFrame = param1ArenaSlot == nullptr ? 0 : reinterpret_cast<uintptr_t>((*param1ArenaSlot)->frame_);
+  if (param1ArenaFrame > resultFrame) {
+    resultFrame = param1ArenaFrame;
+    resultArenaSlot = param1ArenaSlot;
+  }
+  auto param2ArenaSlot = GetParamArena(param2);
+  auto param2ArenaFrame = param2ArenaSlot == nullptr ? 0 : reinterpret_cast<uintptr_t>((*param2ArenaSlot)->frame_);
+  if (param2ArenaFrame > resultFrame) {
+    resultFrame = param2ArenaFrame;
+    resultArenaSlot = param2ArenaSlot;
+  }
+  auto param3ArenaSlot = GetParamArena(param3);
+  auto param3ArenaFrame = param3ArenaSlot == nullptr ? 0 : reinterpret_cast<uintptr_t>((*param3ArenaSlot)->frame_);
+  if (param3ArenaFrame > resultFrame) {
+    resultFrame = param3ArenaFrame;
+    resultArenaSlot = param3ArenaSlot;
+  }
+  auto param4ArenaSlot = GetParamArena(param4);
+  auto param4ArenaFrame = param4ArenaSlot == nullptr ? 0 : reinterpret_cast<uintptr_t>((*param4ArenaSlot)->frame_);
+  if (param4ArenaFrame > resultFrame) {
+    resultFrame = param4ArenaFrame;
+    resultArenaSlot = param4ArenaSlot;
+  }
+  if (resultArenaSlot == nullptr) return localSlot;
+  return reinterpret_cast<ObjHeader**>(reinterpret_cast<uintptr_t>(resultArenaSlot) | ARENA_BIT);
+}
+
+ObjHeader** ChooseAppropriateSlotIfArena_Param_Return(ObjHeader* param, ObjHeader** returnSlot, ObjHeader** localSlot) {
+  uintptr_t resultFrame = 0;
+  ArenaContainer** resultArenaSlot = nullptr;
+  auto returnArenaFrame = isArenaSlot(returnSlot) ? reinterpret_cast<uintptr_t>(returnSlot) : 0;
+  if (returnArenaFrame > resultFrame) {
+    resultFrame = returnArenaFrame;
+    resultArenaSlot = reinterpret_cast<ArenaContainer**>(returnSlot);
+  }
+  auto paramArenaSlot = GetParamArena(param);
+  auto paramArenaFrame = paramArenaSlot == nullptr ? 0 : reinterpret_cast<uintptr_t>((*paramArenaSlot)->frame_);
+  if (paramArenaFrame > resultFrame) {
+    resultFrame = paramArenaFrame;
+    resultArenaSlot = paramArenaSlot;
+  }
+  if (resultArenaSlot == nullptr) return localSlot;
+  return reinterpret_cast<ObjHeader**>(reinterpret_cast<uintptr_t>(resultArenaSlot) | ARENA_BIT);
+}
+
+ObjHeader** ChooseAppropriateSlotIfArena_Param2_Return(ObjHeader* param1, ObjHeader* param2, ObjHeader** returnSlot, ObjHeader** localSlot) {
+  uintptr_t resultFrame = 0;
+  ArenaContainer** resultArenaSlot = nullptr;
+  auto returnArenaFrame = isArenaSlot(returnSlot) ? reinterpret_cast<uintptr_t>(returnSlot) : 0;
+  if (returnArenaFrame > resultFrame) {
+    resultFrame = returnArenaFrame;
+    resultArenaSlot = reinterpret_cast<ArenaContainer**>(returnSlot);
+  }
+  auto param1ArenaSlot = GetParamArena(param1);
+  auto param1ArenaFrame = param1ArenaSlot == nullptr ? 0 : reinterpret_cast<uintptr_t>((*param1ArenaSlot)->frame_);
+  if (param1ArenaFrame > resultFrame) {
+    resultFrame = param1ArenaFrame;
+    resultArenaSlot = param1ArenaSlot;
+  }
+  auto param2ArenaSlot = GetParamArena(param2);
+  auto param2ArenaFrame = param2ArenaSlot == nullptr ? 0 : reinterpret_cast<uintptr_t>((*param2ArenaSlot)->frame_);
+  if (param2ArenaFrame > resultFrame) {
+    resultFrame = param2ArenaFrame;
+    resultArenaSlot = param2ArenaSlot;
+  }
+  if (resultArenaSlot == nullptr) return localSlot;
+  return reinterpret_cast<ObjHeader**>(reinterpret_cast<uintptr_t>(resultArenaSlot) | ARENA_BIT);
+}
+
+ObjHeader** ChooseAppropriateSlotIfArena_Param3_Return(ObjHeader* param1, ObjHeader* param2, ObjHeader* param3, ObjHeader** returnSlot, ObjHeader** localSlot) {
+  uintptr_t resultFrame = 0;
+  ArenaContainer** resultArenaSlot = nullptr;
+  auto returnArenaFrame = isArenaSlot(returnSlot) ? reinterpret_cast<uintptr_t>(returnSlot) : 0;
+  if (returnArenaFrame > resultFrame) {
+    resultFrame = returnArenaFrame;
+    resultArenaSlot = reinterpret_cast<ArenaContainer**>(returnSlot);
+  }
+  auto param1ArenaSlot = GetParamArena(param1);
+  auto param1ArenaFrame = param1ArenaSlot == nullptr ? 0 : reinterpret_cast<uintptr_t>((*param1ArenaSlot)->frame_);
+  if (param1ArenaFrame > resultFrame) {
+    resultFrame = param1ArenaFrame;
+    resultArenaSlot = param1ArenaSlot;
+  }
+  auto param2ArenaSlot = GetParamArena(param2);
+  auto param2ArenaFrame = param2ArenaSlot == nullptr ? 0 : reinterpret_cast<uintptr_t>((*param2ArenaSlot)->frame_);
+  if (param2ArenaFrame > resultFrame) {
+    resultFrame = param2ArenaFrame;
+    resultArenaSlot = param2ArenaSlot;
+  }
+  auto param3ArenaSlot = GetParamArena(param3);
+  auto param3ArenaFrame = param3ArenaSlot == nullptr ? 0 : reinterpret_cast<uintptr_t>((*param3ArenaSlot)->frame_);
+  if (param3ArenaFrame > resultFrame) {
+    resultFrame = param3ArenaFrame;
+    resultArenaSlot = param3ArenaSlot;
+  }
+  if (resultArenaSlot == nullptr) return localSlot;
+  return reinterpret_cast<ObjHeader**>(reinterpret_cast<uintptr_t>(resultArenaSlot) | ARENA_BIT);
+}
+
+ObjHeader** ChooseAppropriateSlotIfArena_Param4_Return(ObjHeader* param1, ObjHeader* param2, ObjHeader* param3, ObjHeader* param4, ObjHeader** returnSlot, ObjHeader** localSlot) {
+  uintptr_t resultFrame = 0;
+  ArenaContainer** resultArenaSlot = nullptr;
+  auto returnArenaFrame = isArenaSlot(returnSlot) ? reinterpret_cast<uintptr_t>(returnSlot) : 0;
+  if (returnArenaFrame > resultFrame) {
+    resultFrame = returnArenaFrame;
+    resultArenaSlot = reinterpret_cast<ArenaContainer**>(returnSlot);
+  }
+  auto param1ArenaSlot = GetParamArena(param1);
+  auto param1ArenaFrame = param1ArenaSlot == nullptr ? 0 : reinterpret_cast<uintptr_t>((*param1ArenaSlot)->frame_);
+  if (param1ArenaFrame > resultFrame) {
+    resultFrame = param1ArenaFrame;
+    resultArenaSlot = param1ArenaSlot;
+  }
+  auto param2ArenaSlot = GetParamArena(param2);
+  auto param2ArenaFrame = param2ArenaSlot == nullptr ? 0 : reinterpret_cast<uintptr_t>((*param2ArenaSlot)->frame_);
+  if (param2ArenaFrame > resultFrame) {
+    resultFrame = param2ArenaFrame;
+    resultArenaSlot = param2ArenaSlot;
+  }
+  auto param3ArenaSlot = GetParamArena(param3);
+  auto param3ArenaFrame = param3ArenaSlot == nullptr ? 0 : reinterpret_cast<uintptr_t>((*param3ArenaSlot)->frame_);
+  if (param3ArenaFrame > resultFrame) {
+    resultFrame = param3ArenaFrame;
+    resultArenaSlot = param3ArenaSlot;
+  }
+  auto param4ArenaSlot = GetParamArena(param4);
+  auto param4ArenaFrame = param4ArenaSlot == nullptr ? 0 : reinterpret_cast<uintptr_t>((*param4ArenaSlot)->frame_);
+  if (param4ArenaFrame > resultFrame) {
+    resultFrame = param4ArenaFrame;
+    resultArenaSlot = param4ArenaSlot;
+  }
+  if (resultArenaSlot == nullptr) return localSlot;
+  return reinterpret_cast<ObjHeader**>(reinterpret_cast<uintptr_t>(resultArenaSlot) | ARENA_BIT);
 }
 
 void UpdateReturnRef(ObjHeader** returnSlot, const ObjHeader* object) {
