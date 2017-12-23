@@ -271,38 +271,37 @@ internal class FunctionGenerationContext(val function: LLVMValueRef,
         // TODO: use in all cases.
         fun chooseArena(parameters: IntArray, useReturn: Boolean): LLVMValueRef {
             val objectParameters = parameters.filter { LLVMTypeOf(param(it)) == codegen.runtime.objHeaderPtrType }
-            if (useReturn && returnSlot != null) {
-                return when (objectParameters.size) {
-                    0 -> call(context.llvm.getReturnSlotIfArenaFunction,
-                            listOf(returnSlot!!, vars.createAnonymousSlot()))
-                    1 -> call(context.llvm.chooseAppropriateSlotIfArena_Param_Return,
-                            listOf(param(objectParameters[0]), returnSlot!!, vars.createAnonymousSlot()))
-                    2 -> call(context.llvm.chooseAppropriateSlotIfArena_Param2_Return,
-                            listOf(param(objectParameters[0]), param(objectParameters[1]), returnSlot!!, vars.createAnonymousSlot()))
-                    3 -> call(context.llvm.chooseAppropriateSlotIfArena_Param3_Return,
-                            listOf(param(objectParameters[0]), param(objectParameters[1]), param(objectParameters[2]), returnSlot!!, vars.createAnonymousSlot()))
-                    4 -> call(context.llvm.chooseAppropriateSlotIfArena_Param4_Return,
-                            listOf(param(objectParameters[0]), param(objectParameters[1]), param(objectParameters[2]), param(objectParameters[3]), returnSlot!!, vars.createAnonymousSlot()))
-                    else -> error("Unsupported number of parameters: ${objectParameters.size}")
-                }
-            } else {
-                return when(objectParameters.size) {
-                    0 -> {
-                        // Return type is not an object type - can allocate locally.
-                        localAllocs++
-                        arenaSlot!!
-                    }
-                    1 -> call(context.llvm.getParamSlotIfArenaFunction,
-                            listOf(param(objectParameters[0]), vars.createAnonymousSlot()))
-                    2 -> call(context.llvm.chooseAppropriateSlotIfArena_Param2Function,
-                            listOf(param(objectParameters[0]), param(objectParameters[1]), vars.createAnonymousSlot()))
-                    3 -> call(context.llvm.chooseAppropriateSlotIfArena_Param3Function,
-                            listOf(param(objectParameters[0]), param(objectParameters[1]), param(objectParameters[2]), vars.createAnonymousSlot()))
-                    4 -> call(context.llvm.chooseAppropriateSlotIfArena_Param4Function,
-                            listOf(param(objectParameters[0]), param(objectParameters[1]), param(objectParameters[2]), param(objectParameters[3]), vars.createAnonymousSlot()))
-                    else -> error("Unsupported number of parameters: ${objectParameters.size}")
-                }
+            val returnSlot = if (useReturn) this.returnSlot else null
+            if (returnSlot == null && objectParameters.isEmpty()) {
+                // Return type is not an object type - can allocate locally.
+                localAllocs++
+                return arenaSlot!!
             }
+            var resultFrame = ptrToInt(
+                    if (returnSlot == null) {
+                        vars.createAnonymousSlot()
+                    } else {
+                        call(context.llvm.getReturnSlotIfArenaFunction, listOf(returnSlot, vars.createAnonymousSlot()))
+                    },
+                    codegen.intPtrType)
+            objectParameters.forEach {
+                val paramFrame = call(context.llvm.getParamFrame, listOf(param(it)))
+                val bbTakeParam = basicBlock("takeParam", null)
+                val bbDoNotTakeParam = basicBlock("doNotTakeParam", null)
+                val bbNextParam = basicBlock("nextParam", null)
+                condBr(icmpGt(paramFrame, resultFrame), bbTakeParam, bbDoNotTakeParam)
+                appendingTo(bbTakeParam) {
+                    br(bbNextParam)
+                }
+                appendingTo(bbDoNotTakeParam) {
+                    br(bbNextParam)
+                }
+                positionAtEnd(bbNextParam)
+                val currentFrame = phi(codegen.intPtrType)
+                addPhiIncoming(currentFrame, bbTakeParam to paramFrame, bbDoNotTakeParam to resultFrame)
+                resultFrame = currentFrame
+            }
+            return intToPtr(resultFrame, codegen.kObjHeaderPtrPtr)
         }
 
         return when (lifetime.slotType) {
