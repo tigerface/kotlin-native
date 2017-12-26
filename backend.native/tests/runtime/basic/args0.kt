@@ -1,3 +1,33 @@
+////import kotlin.system.measureNanoTime
+//
+//fun main(args: Array<String>) {
+//    (0..10_000)
+//            .asSequence()
+//            .filter { it % 3 == 2 }
+//            .sumBy { it }
+//}
+//
+////import kotlin.system.measureNanoTime
+////
+////fun main(args: Array<String>) {
+////    //val arr = IntArray(10_000) { it }
+////    val elapsed = measureNanoTime {
+////        var s = 0L
+////        //for (i in 1..3000) {
+////            s += (0..10_000)
+////                    .asSequence()
+////                    .filter { it % 3 == 2 }
+////                    //.map { (it * it).toLong() }
+////                    .sumBy { it }
+////        //}
+////        println(s)
+////    }
+////    //println(elapsed / 1_000_000)
+////}
+//
+
+
+
 //data class Node(val data: Int, var next: Node?, var prev: Node?, val outer: Node?)
 //
 //fun makeCycle(len: Int, outer: Node?): Node {

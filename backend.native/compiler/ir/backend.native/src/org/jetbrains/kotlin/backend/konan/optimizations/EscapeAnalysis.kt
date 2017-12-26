@@ -332,6 +332,21 @@ internal object EscapeAnalysis {
                     }
                 }
             }
+            multiNode.nodes.forEach {
+                val escapeAnalysisResult = escapeAnalysisResults[it]!!
+                var escapes = 0
+                val pointsTo = escapeAnalysisResult.parameters.withIndex().map { (index, parameterEAResult) ->
+                    if (parameterEAResult.escapes)
+                        escapes = escapes or (1 shl index)
+                    var pointsToMask = 0
+                    parameterEAResult.pointsTo.forEach {
+                        pointsToMask = pointsToMask or (1 shl it)
+                    }
+                    pointsToMask
+                }.toIntArray()
+                it.escapes = escapes
+                it.pointsTo = pointsTo
+            }
             for (graph in pointsToGraphs.values) {
                 for (node in graph.nodes.keys) {
                     val ir = when (node) {

@@ -116,8 +116,17 @@ internal object DataFlowIR {
     }
 
     abstract class FunctionSymbol(val numberOfParameters: Int, val name: String?) {
-        class External(val hash: Long, numberOfParameters: Int, val escapes: Int?, val pointsTo: IntArray?, name: String? = null)
+        var escapes: Int? = null
+        var pointsTo: IntArray? = null
+
+        class External(val hash: Long, numberOfParameters: Int, escapes: Int?, pointsTo: IntArray?, name: String? = null)
             : FunctionSymbol(numberOfParameters, name) {
+
+            init {
+                this.escapes = escapes
+                this.pointsTo = pointsTo
+            }
+
             override fun equals(other: Any?): Boolean {
                 if (this === other) return true
                 if (other !is External) return false
