@@ -16,6 +16,7 @@
 
 package org.jetbrains.kotlin.backend.konan.optimizations
 
+import org.jetbrains.kotlin.backend.common.atMostOne
 import org.jetbrains.kotlin.backend.common.descriptors.allParameters
 import org.jetbrains.kotlin.backend.common.descriptors.isSuspend
 import org.jetbrains.kotlin.backend.common.ir.ir2stringWhole
@@ -452,7 +453,11 @@ internal class ModuleDFGBuilder(val context: Context, val irModule: IrModuleFrag
                     (if (descriptor.isSuspend) listOf(continuationParameter!!) else emptyList())
 
             val parameterTypes = (allParameters.map { it.type } + (if (descriptor.isSuspend) listOf(continuationType) else emptyList()))
-                    .map { symbolTable.mapClass(it.erasure().single().constructor.declarationDescriptor as ClassDescriptor) }
+                    .map {
+                        val erasure = it.erasure().map { it.constructor.declarationDescriptor as ClassDescriptor }
+                        val zzz = erasure.singleOrNull() ?: erasure.atMostOne { !it.isInterface } ?: context.builtIns.any
+                        symbolTable.mapClass(zzz)
+                    }
                     .toTypedArray()
             return DataFlowIR.Function(
                     symbol              = symbolTable.mapFunction(descriptor),
