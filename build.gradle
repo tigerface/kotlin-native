@@ -277,6 +277,46 @@ task crossDistPlatformLibs {
     dependsOn.addAll(targetList.collect { "${it}PlatformLibs" })
 }
 
+// TODO: Until we have kotlin-native-gradle-plugin as a separate build,
+// we have to make gradle files using konanArtifact separate GradleBuild tasks.
+
+task InteropJsRuntime(type: GradleBuild) {
+    dependsOn ':tools:kotlin-native-gradle-plugin:jar'
+    dir = 'Interop/JsRuntime'
+    tasks = ['build']
+    startParameter.projectProperties = [
+        'konan.jvmArgs'  : project.findProperty("platformLibsJvmArgs") ?: "-Xmx3G",
+        'konanVersion'   : konanVersion,
+        'konan.home'     : distDir.absolutePath
+    ]
+}
+
+def klibInstallTask(String taskName, List<String> dependencies, String fromBuild, String toRepository, List<String> moreArgs) {
+
+    def suff = gradle.startParameter.projectProperties['suffix']
+    def klibProgram = "${project.file("dist/bin/klib").absolutePath}${suff ? ".$suff" : ""}"
+
+    return tasks.create(name: taskName, type: Exec) {
+        dependsOn.addAll(dependencies)
+        doFirst {
+            new File(toRepository).mkdirs()
+        }
+        commandLine(klibProgram,
+            'install',
+            fromBuild,
+            '-repository',
+            toRepository,
+            *moreArgs)
+    }
+}
+
+klibInstallTask("installJsRuntime",
+    ['dist', 'InteropJsRuntime'],
+    project.file('Interop/JsRuntime/build/konan/libs/wasm32/jsinterop.klib').absolutePath, 
+    "dist/klib/platform/wasm32",
+    ["-target", 'wasm32']
+)
+
 targetList.each { target ->
     task("${target}CrossDistRuntime", type: Copy) {
         dependsOn ":runtime:${target}Runtime"

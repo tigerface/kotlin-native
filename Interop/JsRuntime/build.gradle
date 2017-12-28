@@ -1,0 +1,20 @@
+
+buildscript {
+
+    def konanVersion = gradle.startParameter.projectProperties['konanVersion']
+
+    dependencies {
+        println(rootProject.file("tools/kotlin-native-gradle-plugin/build/libs/kotlin-native-gradle-plugin-${konanVersion}.jar").absolutePath)
+        classpath project.files("../../tools/kotlin-native-gradle-plugin/build/libs/kotlin-native-gradle-plugin-${konanVersion}.jar")
+    }
+}
+
+apply plugin: 'konan'
+
+konan.targets = [ 'wasm32' ]
+konanArtifacts {
+    library("jsinterop") {
+        extraOpts '-includeBinary', project.file('src/main/js/jsinterop.js')
+    }
+}
+
