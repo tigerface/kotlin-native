@@ -160,7 +160,7 @@ internal object DataFlowIR {
             }
 
             override fun toString(): String {
-                return "PublicFunction(hash='$hash', name='$name')"
+                return "PublicFunction(hash='$hash', name='$name', escapes='$escapes', pointsTo='${pointsTo?.contentToString()})"
             }
         }
 
@@ -178,7 +178,7 @@ internal object DataFlowIR {
             }
 
             override fun toString(): String {
-                return "PrivateFunction(index=$index, name='$name')"
+                return "PrivateFunction(index=$index, name='$name', escapes='$escapes', pointsTo='${pointsTo?.contentToString()})"
             }
         }
     }

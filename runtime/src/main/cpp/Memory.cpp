@@ -1167,7 +1167,7 @@ void GarbageCollect() {
   RuntimeAssert(!state->gcInProgress, "Recursive GC is disallowed");
 
   MEMORY_LOG("Garbage collect\n")
-  konan::consolePrintf("GC\n");
+  //konan::consolePrintf("GC\n");
 
   state->gcInProgress = true;
 

@@ -238,6 +238,7 @@ internal object EscapeAnalysis {
 
     private class InterproceduralAnalysis(val callGraph: CallGraph,
                                           val intraproceduralAnalysisResult: Map<DataFlowIR.FunctionSymbol, FunctionAnalysisResult>,
+                                          val externalModulesDFG: ExternalModulesDFG,
                                           val lifetimes: MutableMap<IrElement, Lifetime>) {
 
         val escapeAnalysisResults = mutableMapOf<DataFlowIR.FunctionSymbol, FunctionEscapeAnalysisResult>()
@@ -394,14 +395,20 @@ internal object EscapeAnalysis {
             val numberOfParameters = symbol.numberOfParameters
             return FunctionEscapeAnalysisResult((0..numberOfParameters).map {
                 ParameterEscapeAnalysisResult(
-                        escapes = true,
+                        escapes  = true,
                         pointsTo = IntArray(0)
                 )
             }.toTypedArray())
         }
 
+        private fun DataFlowIR.FunctionSymbol.resolved(): DataFlowIR.FunctionSymbol {
+            if (this is DataFlowIR.FunctionSymbol.External)
+                return externalModulesDFG.publicFunctions[this.hash] ?: this
+            return this
+        }
+
         private fun getExternalFunctionEAResult(callSite: CallGraphNode.CallSite): FunctionEscapeAnalysisResult {
-            val callee = callSite.actualCallee
+            val callee = callSite.actualCallee.resolved()
 
             val calleeEAResult = if (callSite.isVirtual) {
 
@@ -409,7 +416,8 @@ internal object EscapeAnalysis {
 
                 getConservativeFunctionEAResult(callee)
             } else {
-                callee as DataFlowIR.FunctionSymbol.External
+
+                DEBUG_OUTPUT(0) { println("An external call: $callee") }
 
                 FunctionEscapeAnalysisResult.fromBits(
                         callee.escapes ?: 0,
@@ -703,7 +711,7 @@ internal object EscapeAnalysis {
         assert(lifetimes.isEmpty())
 
         val intraproceduralAnalysisResult =
-                IntraproceduralAnalysis(moduleDFG.functions + externalModulesDFG.functionDFGs, callGraph).analyze()
-        InterproceduralAnalysis(callGraph, intraproceduralAnalysisResult, lifetimes).analyze()
+                IntraproceduralAnalysis(moduleDFG.functions, callGraph).analyze()
+        InterproceduralAnalysis(callGraph, intraproceduralAnalysisResult, externalModulesDFG, lifetimes).analyze()
     }
 }

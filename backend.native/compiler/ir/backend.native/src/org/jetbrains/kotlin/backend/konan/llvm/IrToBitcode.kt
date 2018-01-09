@@ -81,21 +81,6 @@ internal fun emitLLVM(context: Context) {
 
         val lifetimes = mutableMapOf<IrElement, Lifetime>()
         val codegenVisitor = CodeGeneratorVisitor(context, lifetimes)
-        phaser.phase(KonanPhase.SERIALIZE_DFG) {
-            DFGSerializer.serialize(context, moduleDFG!!)
-            val privateFunctions = moduleDFG!!.symbolTable.functionMap
-                    .asSequence()
-                    .filter { it.key is FunctionDescriptor }
-                    .filter { it.value.let { it is DataFlowIR.FunctionSymbol.Declared && it.symbolTableIndex >= 0 } }
-                    .sortedBy { (it.value as DataFlowIR.FunctionSymbol.Declared).symbolTableIndex }
-                    .map { it.key as FunctionDescriptor }
-                    .toList()
-
-            codegenVisitor.codegen.staticData.placeGlobalConstArray("private_functions_${irModule.descriptor.name}", int8TypePtr,
-                    privateFunctions.map { constPointer(codegenVisitor.codegen.functionLlvmValue(it)).bitcast(int8TypePtr) },
-                    isExported = true
-            )
-        }
 
         @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
         var externalModulesDFG: ExternalModulesDFG? = null
@@ -118,6 +103,22 @@ internal fun emitLLVM(context: Context) {
         phaser.phase(KonanPhase.ESCAPE_ANALYSIS) {
             val callGraph = CallGraphBuilder(context, moduleDFG!!, externalModulesDFG!!, devirtualizationAnalysisResult).build()
             EscapeAnalysis.computeLifetimes(moduleDFG!!, externalModulesDFG!!, callGraph, lifetimes)
+        }
+
+        phaser.phase(KonanPhase.SERIALIZE_DFG) {
+            DFGSerializer.serialize(context, moduleDFG!!)
+            val privateFunctions = moduleDFG!!.symbolTable.functionMap
+                    .asSequence()
+                    .filter { it.key is FunctionDescriptor }
+                    .filter { it.value.let { it is DataFlowIR.FunctionSymbol.Declared && it.symbolTableIndex >= 0 } }
+                    .sortedBy { (it.value as DataFlowIR.FunctionSymbol.Declared).symbolTableIndex }
+                    .map { it.key as FunctionDescriptor }
+                    .toList()
+
+            codegenVisitor.codegen.staticData.placeGlobalConstArray("private_functions_${irModule.descriptor.name}", int8TypePtr,
+                    privateFunctions.map { constPointer(codegenVisitor.codegen.functionLlvmValue(it)).bitcast(int8TypePtr) },
+                    isExported = true
+            )
         }
 
         phaser.phase(KonanPhase.CODEGEN) {
