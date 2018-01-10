@@ -16,6 +16,7 @@
 
 #include "ReturnSlot.h"
 
+#ifdef KONAN_WASM
 namespace  {
     THREAD_LOCAL_VARIABLE long long storage;
 }
@@ -31,3 +32,4 @@ extern "C" {
         reinterpret_cast<KInt*>(&::storage)[1] = upper;
     }
 }
+#endif
