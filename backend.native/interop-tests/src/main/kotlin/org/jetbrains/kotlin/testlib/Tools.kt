@@ -26,12 +26,12 @@ val testHome = resolveProperty("test.home")
 val testOutput = resolveProperty("test.output")
 
 fun resolveProperty(property: String): String {
-    return System.getProperty(property) ?: throw RuntimeException("konan.home is not defined")
+    return System.getProperty(property) ?: throw RuntimeException("$property is not defined")
 }
 
 object CompilerUtils {
     private fun compile(compiler: String, options: List<String>, output: Path) {
-        check(Files.notExists(output))
+        check(Files.notExists(output), { "Output path is not empty: $output" })
         val executeProcess = ProcessUtils.executeProcess(compiler, *options.toTypedArray())
         println("""$compiler finished with exit code: ${executeProcess.exitCode}
             |stdout: ${executeProcess.stdOut}

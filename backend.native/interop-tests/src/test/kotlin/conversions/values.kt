@@ -1,3 +1,6 @@
+// All classes and methods should be used in reverse interop tests
+@file:Suppress("UNUSED")
+
 package conversions
 
 import kotlin.properties.ReadWriteProperty
@@ -111,7 +114,6 @@ class DefaultInterfaceExt : I
 
 open class OpenClassI : I {
     override fun iFun(): String = "OpenClassI::iFun"
-
 }
 
 class FinalClassExtOpen : OpenClassI() {
@@ -148,3 +150,42 @@ fun receiveEnum(e: Int) {
 fun get(value: Int): Enumeration {
     return Enumeration.values()[value]
 }
+
+// Data class values and generated properties: component# and toString()
+data class TripleVals<T>(val first: T, val second: T, val third: T)
+
+data class TripleVars<T>(var first: T, var second: T, var third: T) {
+    override fun toString(): String {
+        return "[$first, $second, $third]"
+    }
+}
+
+open class WithCompanionAndObject {
+    companion object {
+        val str = "String"
+        var named: I? = Named
+    }
+
+    object Named : OpenClassI() {
+        override fun iFun(): String = "WithCompanionAndObject.Named::iFun"
+    }
+}
+
+fun getCompanionObject() = WithCompanionAndObject.Companion
+fun getNamedObject() = WithCompanionAndObject.Named
+fun getNamedObjectInterface(): OpenClassI = WithCompanionAndObject.Named
+
+// Stdlib usage with generics
+class GenericExtensionClass<K, out V, out T : Map<K, V>> (private val holder: T?) {
+    fun getFirstKey(): K? = holder?.entries?.first()?.key
+
+    fun getFirstValue() : V? =  holder?.entries?.first()?.value
+
+    // factory
+    companion object {
+        fun <K, V> create() : Map<K, V> = HashMap()
+    }
+}
+
+typealias EE = Enumeration
+fun EE.getAnswer() : EE  = Enumeration.ANSWER

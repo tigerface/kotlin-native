@@ -5,8 +5,20 @@ import Values
 enum TestError : Error {
     case assertFailed(String)
     case failure
-    case testsFailed
+    case testsFailed([String])
 }
+
+// TODO: create a test case and a holder to be used instead of manual invocation of each test method
+//struct TestCase {
+//    init(name: String, method: () -> Void) {
+//
+//    }
+//}
+
+//class TestRunner {
+//    let tests: [TestCase]
+//    func execute(test: TestCase)
+//}
 
 func assertEquals<T: Equatable>(actual: T, expected: T,
                                  _ message: String = "Assertion failed.") throws {
@@ -16,7 +28,7 @@ func assertEquals<T: Equatable>(actual: T, expected: T,
 }
 
 func assertEquals<T: Equatable>(actual: [T], expected: [T],
-                                 _ message: String = "Assertion failed: arrays not equal") throws {
+                                _ message: String = "Assertion failed: arrays not equal") throws {
     try assertEquals(actual: actual.count, expected: expected.count, "Size differs")
     try assertTrue(actual.elementsEqual(expected),
             "Arrays elements are not equal")
@@ -196,12 +208,11 @@ func testGenericsFoo() throws {
     try assertEquals(actual: res as! String, expected: "S 42")
 }
 
-
-//func testVararg() throws {
-//    let ktArray = ValuesStdlibArray(size: 3, init: { (_) -> Int in return 42 })
-//    let arr: [Int] = Values.varargToList(args: ktArray) as! [Int]
-//    try assertEquals(actual: arr, expected: [42, 42, 42])
-//}
+func testVararg() throws {
+    let ktArray = ValuesStdlibArray(size: 3, init: { (_) -> Int in return 42 })
+    let arr: [Int] = Values.varargToList(args: ktArray) as! [Int]
+    try assertEquals(actual: arr, expected: [42, 42, 42])
+}
 
 func testStrExtFun() throws {
     try assertEquals(actual: Values.subExt("String", i: 2), expected: "r")
@@ -263,6 +274,46 @@ func testEnum() throws {
     Values.receiveEnum(e: 1)
 }
 
+func testDataClass() throws {
+    let f = "1"
+    let s = "2"
+    let t = "3"
+
+    let tripleVal = ValuesTripleVals(first: f, second: s, third: t)
+    try assertEquals(actual: tripleVal.first as! String, expected: f, "Data class' value")
+    try assertEquals(actual: tripleVal.component2() as! String, expected: s, "Data class' component")
+    print(tripleVal)
+    try assertEquals(actual: String(describing: tripleVal), expected: "TripleVals(first=\(f), second=\(s), third=\(t))")
+
+    let tripleVar = ValuesTripleVars(first: f, second: s, third: t)
+    try assertEquals(actual: tripleVar.first as! String, expected: f, "Data class' value")
+    try assertEquals(actual: tripleVar.component2() as! String, expected: s, "Data class' component")
+    print(tripleVar)
+    try assertEquals(actual: String(describing: tripleVar), expected: "[\(f), \(s), \(t)]")
+
+    tripleVar.first = t
+    tripleVar.second = f
+    tripleVar.third = s
+    try assertEquals(actual: tripleVar.component2() as! String, expected: f, "Data class' component")
+    try assertEquals(actual: String(describing: tripleVar), expected: "[\(t), \(f), \(s)]")
+}
+
+func testCompanionObj() throws {
+    // FIXME: unable to get companion's str property
+//    try assertEquals(actual: ValuesWithCompanionAndObjectCompanion.str, expected: "String")
+    try assertEquals(actual: Values.getCompanionObject().str, expected: "String")
+
+    let namedFromCompanion = Values.getCompanionObject().named
+    let named = Values.getNamedObject()
+    try assertTrue(named === namedFromCompanion, "Should be the same Named object")
+
+    try assertEquals(actual: Values.getNamedObjectInterface().iFun(), expected: named.iFun(), "Named object's method")
+}
+
+func testMapUsage() throws {
+    let map = ValuesGenericExtensionClass(holder: ValuesGenericExtensionClass.Companion.create())
+}
+
 // -------- Execution of the test --------
 
 func main() {
@@ -279,7 +330,7 @@ func main() {
         try testFunctions()
         try testFuncType()
         try testGenericsFoo()
-//        try testVararg()
+        try testVararg()
         try testStrExtFun()
         try testAnyToString()
         try testAnyPrint()
@@ -288,6 +339,9 @@ func main() {
         try testInterfaceExtension()
         try testClassInstances()
         try testEnum()
+        try testDataClass()
+        try testCompanionObj()
+        try testMapUsage()
     } catch {
         print("Tests failed: \(error)")
         abort()
