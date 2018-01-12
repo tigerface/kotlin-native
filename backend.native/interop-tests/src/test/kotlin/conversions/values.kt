@@ -180,12 +180,10 @@ class GenericExtensionClass<K, out V, out T : Map<K, V>> (private val holder: T?
     fun getFirstKey(): K? = holder?.entries?.first()?.key
 
     fun getFirstValue() : V? =  holder?.entries?.first()?.value
-
-    // factory
-    companion object {
-        fun <K, V> create() : Map<K, V> = HashMap()
-    }
 }
+
+fun <K, V> createMutableMap() = mutableMapOf<K, V>()
+fun createTypedMutableMap() = mutableMapOf<Int, String>()
 
 typealias EE = Enumeration
 fun EE.getAnswer() : EE  = Enumeration.ANSWER

@@ -20,17 +20,15 @@ import org.jetbrains.kotlin.testlib.*
 
 import org.junit.Test
 import org.junit.Before
+import org.junit.Ignore
 import java.nio.file.Paths
 
 private const val PROJECT_DIR = "/Users/ppunegov/ws/kotlin-native/backend.native/interop-tests/"
 
+@Ignore
 class Test {
     @Before
-    fun cleanupOutDir() {
-        val outDirPath = Paths.get(PROJECT_DIR, "test-out")
-        outDirPath.toFile().deleteRecursively()
-        outDirPath.toFile().mkdir()
-    }
+    fun cleanup() = cleanupOutDir()
 
     @Test
     fun executeSwiftHelp() {

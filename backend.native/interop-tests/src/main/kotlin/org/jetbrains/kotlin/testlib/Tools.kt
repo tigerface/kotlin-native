@@ -99,7 +99,7 @@ fun compileAndRun(ktl: Path, swift: Path, objc: Path) {
     val fwPath = Paths.get(testOutput).toString()
     options = listOf("-g", "-Xlinker", "-rpath", "-Xlinker", fwPath, "-F", fwPath)
     output = Paths.get(testOutput, "swift.exec")
-    CompilerUtils.swiftc(listOf(swift), options, output)
+    CompilerUtils.swiftc(listOf(swift, swiftMain), options, output)
 
     val result = ProcessUtils.executeProcess(output.toString())
     check(result.exitCode == 0, {
@@ -117,3 +117,5 @@ fun compileAndRun(ktl: Path, swift: Path, objc: Path) {
 //    assert(result.exitCode == 0, { "Execution failed" })
 //    println(result.stdOut)
 }
+
+private val swiftMain: Path = Paths.get(testHome, "main", "swift", "main.swift")

@@ -1,50 +1,5 @@
+import Foundation
 import Values
-
-// -------- Helpers --------
-
-enum TestError : Error {
-    case assertFailed(String)
-    case failure
-    case testsFailed([String])
-}
-
-// TODO: create a test case and a holder to be used instead of manual invocation of each test method
-//struct TestCase {
-//    init(name: String, method: () -> Void) {
-//
-//    }
-//}
-
-//class TestRunner {
-//    let tests: [TestCase]
-//    func execute(test: TestCase)
-//}
-
-func assertEquals<T: Equatable>(actual: T, expected: T,
-                                 _ message: String = "Assertion failed.") throws {
-    if (actual != expected) {
-        throw TestError.assertFailed(message + " Expected value: \(expected), but got: \(actual)")
-    }
-}
-
-func assertEquals<T: Equatable>(actual: [T], expected: [T],
-                                _ message: String = "Assertion failed: arrays not equal") throws {
-    try assertEquals(actual: actual.count, expected: expected.count, "Size differs")
-    try assertTrue(actual.elementsEqual(expected),
-            "Arrays elements are not equal")
-}
-
-func assertTrue(_ value: Bool, _ message: String = "Assertion failed.") throws {
-    if (value != true) {
-        throw TestError.assertFailed(message + " Expected value to be TRUE, but got: \(value)")
-    }
-}
-
-func assertFalse(_ value: Bool, _ message: String = "Assertion failed.") throws {
-    if (value != false) {
-        throw TestError.assertFailed(message + " Expected value to be FALSE, but got: \(value)")
-    }
-}
 
 // -------- Tests --------
 
@@ -310,44 +265,77 @@ func testCompanionObj() throws {
     try assertEquals(actual: Values.getNamedObjectInterface().iFun(), expected: named.iFun(), "Named object's method")
 }
 
-func testMapUsage() throws {
-    let map = ValuesGenericExtensionClass(holder: ValuesGenericExtensionClass.Companion.create())
+func testGenericMapUsage() throws {
+    let map = Values.createMutableMap()
+    map.put(key: 1, value: "One")
+    map.put(key: 10, value: "Ten")
+    map.put(key: 11, value: "Eleven")
+    map.put(key: "10", value: "Ten")
+    let gen = ValuesGenericExtensionClass(holder: map)
+    let value : String? = gen.getFirstValue() as? String
+    try assertEquals(actual: value!, expected: "One", "First value of the map")
+}
+
+func testTypedMapUsage() throws {
+    let map = Values.createTypedMutableMap()
+    map.put(key: 1, value: "One")
+    map.put(key: 1.0 as Float, value: "Float")
+    map.put(key: 11, value: "Eleven")
+    map.put(key: "10", value: "Ten as string")
+    let gen = ValuesGenericExtensionClass(holder: map)
+    let value : String? = gen.getFirstValue() as? String
+    try assertEquals(actual: value!, expected: "One", "First value of the map")
 }
 
 // -------- Execution of the test --------
 
-func main() {
-    do {
-        try testVals()
-        try testVars()
-        try testDoubles()
-        try testLists()
-        try testLazyVal()
-        try testDelegatedProp()
-        try testGetterDelegate()
-        try testNulls()
-        try testAnyVar()
-        try testFunctions()
-        try testFuncType()
-        try testGenericsFoo()
-        try testVararg()
-        try testStrExtFun()
-        try testAnyToString()
-        try testAnyPrint()
-        try testLambda()
-
-        try testInterfaceExtension()
-        try testClassInstances()
-        try testEnum()
-        try testDataClass()
-        try testCompanionObj()
-        try testMapUsage()
-    } catch {
-        print("Tests failed: \(error)")
-        abort()
+private func withAutorelease( _ method: @escaping () throws -> Void) -> () throws -> Void {
+    return { () throws -> Void in
+        try autoreleasepool { try method() }
     }
 }
 
-autoreleasepool {
-    main()
+class ValuesTests : TestProvider {
+    var tests: [TestCase] = []
+
+    init() {
+        providers.append(self)
+        tests.append(TestCase(name: "TestValues", method: withAutorelease(testVals)))
+        tests.append(TestCase(name: "TestVars", method: withAutorelease(testVars)))
+    }
+}
+
+func executeTests() {
+    autoreleasepool {
+        do {
+            try testVals()
+            try testVars()
+            try testDoubles()
+            try testLists()
+            try testLazyVal()
+            try testDelegatedProp()
+            try testGetterDelegate()
+            try testNulls()
+            try testAnyVar()
+            try testFunctions()
+            try testFuncType()
+            try testGenericsFoo()
+            try testVararg()
+            try testStrExtFun()
+            try testAnyToString()
+            try testAnyPrint()
+            try testLambda()
+
+            try testInterfaceExtension()
+            try testClassInstances()
+            try testEnum()
+            try testDataClass()
+            try testCompanionObj()
+            try testGenericMapUsage()
+            try testTypedMapUsage()
+        } catch {
+            print("Tests failed: \(error)")
+            abort()
+        }
+    }
 }
