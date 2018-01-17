@@ -16,6 +16,7 @@
 
 include ':dependencies'
 include ':Interop:Indexer'
+include ':Interop:JsRuntime'
 include ':Interop:StubGenerator'
 include ':Interop:Runtime'
 include ':llvmDebugInfoC'
