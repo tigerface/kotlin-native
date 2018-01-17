@@ -217,10 +217,15 @@ internal fun KotlinType.encoding(context:Context):DwarfTypeKind = when {
 internal fun alignTo(value:Long, align:Long):Long = (value + align - 1) / align * align
 
 internal fun  FunctionDescriptor.subroutineType(context: Context, llvmTargetData: LLVMTargetDataRef): DISubroutineTypeRef {
+    val types = this@subroutineType.types
+    return subroutineType(context, llvmTargetData, types)
+}
+
+internal fun subroutineType(context: Context, llvmTargetData: LLVMTargetDataRef, types: List<KotlinType>): DISubroutineTypeRef {
     return memScoped {
         DICreateSubroutineType(context.debugInfo.builder, allocArrayOf(
-                this@subroutineType.types.map { it.diType(context, llvmTargetData) }),
-                this@subroutineType.types.size)!!
+                types.map { it.diType(context, llvmTargetData) }),
+                types.size)!!
     }
 }
 

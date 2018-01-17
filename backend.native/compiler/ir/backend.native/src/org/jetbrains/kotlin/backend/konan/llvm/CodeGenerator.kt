@@ -79,6 +79,8 @@ internal class CodeGenerator(override val context: Context) : ContextUtils {
     }
 
     fun generateLocationInfo(locationInfo: LocationInfo): DILocationRef? {
+        if (locationInfo.inlinedAt != null)
+            return LLVMCreateLocationInlinedAt(LLVMGetModuleContext(context.llvmModule), locationInfo.line, locationInfo.column, locationInfo.scope, generateLocationInfo(locationInfo.inlinedAt)!!)
         return LLVMCreateLocation(LLVMGetModuleContext(context.llvmModule), locationInfo.line, locationInfo.line, locationInfo.scope)
     }
 
