@@ -2360,6 +2360,18 @@ if (isMac()) {
     }
 }
 
+task jsinterop_math(type: RunStandaloneKonanTest) {
+    doFirst {
+        // TODO: We probably need a NativeInteropPlugin for jsinterop?
+        "jsinterop -pkg kotlinx.interop.wasm.math -o $buildDir/jsmath -target wasm32".execute()
+
+    }
+    disabled = (project.testTarget != 'wasm32')
+    goldValue = "e = 2.718280792236328, pi = 3.141592025756836, sin(pi) = 6.278328328335192E-7, sin(pi/2) = 0.9999995231628418, ln(1) = 0.0, ln(e) = 0.9999995231628418\n"
+    source = "jsinterop/math.kt"
+    flags = ["-r", "$buildDir", "-l", "jsmath"]
+}
+
 task produce_dynamic(type: DynamicKonanTest) {
     disabled = (project.testTarget != null && project.testTarget != project.hostName)
     source = "produce_dynamic/simple/hello.kt"

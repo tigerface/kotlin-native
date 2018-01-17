@@ -408,4 +408,3 @@ fun processIdlLib(args: Array<String>): Array<String> {
     File(arguments.manifest!!).writeText("") // The manifest is currently unused for wasm.
     return argsToCompiler(arguments.staticLibrary, arguments.libraryPath)
 }
-
